@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#07060f" />
+    <title>KANSEI — Neon Drift</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        background: #07060f;
+        overflow: hidden;
+        font-family: 'Rajdhani', system-ui, sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
+      }
+      #game {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #game canvas {
+        /* Subtle CRT-ish vignette glow behind the canvas */
+        box-shadow: 0 0 80px rgba(124, 77, 255, 0.25);
+      }
+      /* Loading splash shown before Phaser boots */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #07060f;
+        z-index: 10;
+        transition: opacity 0.4s ease;
+      }
+      #boot-splash.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot-splash h1 {
+        font-family: 'Orbitron', sans-serif;
+        font-weight: 900;
+        font-size: clamp(34px, 9vw, 78px);
+        letter-spacing: 0.32em;
+        color: #fff;
+        text-shadow: 0 0 12px #ff2d9b, 0 0 34px #ff2d9b, 0 0 60px #7c4dff;
+        padding-left: 0.32em;
+      }
+      #boot-splash p {
+        font-family: 'Rajdhani', sans-serif;
+        font-weight: 600;
+        letter-spacing: 0.4em;
+        color: #19e3ff;
+        text-shadow: 0 0 10px #19e3ff;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot-splash">
+      <h1>KANSEI</h1>
+      <p>LOADING…</p>
+    </div>
+    <div id="game"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

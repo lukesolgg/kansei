@@ -1,0 +1,26 @@
+{
+  "name": "kansei",
+  "version": "1.0.0",
+  "description": "KANSEI — a neon-retro top-down JDM drift game",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "game",
+    "drift",
+    "phaser",
+    "jdm",
+    "neon"
+  ],
+  "author": "lukesolgg",
+  "license": "MIT",
+  "dependencies": {
+    "phaser": "^3.88.0"
+  },
+  "devDependencies": {
+    "vite": "^6.3.0"
+  }
+}
