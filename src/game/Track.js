@@ -440,6 +440,45 @@ export class Track {
     return { dist: n.dist, nx: dx / d, ny: dy / d };
   }
 
+  // Richer wall context: distance from the centreline, the inward unit normal
+  // (toward centre, same as edgeInfo), whether the car sits on the INSIDE vs the
+  // OUTSIDE of the bend, and whether the section is straight. Powers the
+  // drift-friendly wall bounce + the outer-wall proximity speed boost.
+  wallContext(x, y) {
+    const n = this._nearest(x, y);
+    const p = this.path;
+    const i = n.index;
+    const pt = p[i];
+    let ox = x - pt.x;
+    let oy = y - pt.y;
+    const d = Math.hypot(ox, oy) || 1;
+    ox /= d;
+    oy /= d; // outward unit (centre -> car)
+    // unit normal at i (matches the road build: left = p + n*half)
+    const a = p[Math.max(0, i - 1)];
+    const b = p[Math.min(p.length - 1, i + 1)];
+    let tx = b.x - a.x;
+    let ty = b.y - a.y;
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl;
+    ty /= tl;
+    const nlx = -ty;
+    const nly = tx;
+    // signed turn over a wider stencil — stable on corners, ~0 on straights
+    const j0 = Math.max(0, i - 4);
+    const j1 = Math.min(p.length - 1, i + 4);
+    const u0x = pt.x - p[j0].x;
+    const u0y = pt.y - p[j0].y;
+    const u1x = p[j1].x - pt.x;
+    const u1y = p[j1].y - pt.y;
+    const denom = Math.hypot(u0x, u0y) * Math.hypot(u1x, u1y) || 1;
+    const curveSin = (u0x * u1y - u0y * u1x) / denom;
+    const straight = Math.abs(curveSin) < 0.06;
+    const proj = ox * nlx + oy * nly; // which side of the normal the car sits on
+    const onInside = !straight && curveSin * proj > 0;
+    return { dist: n.dist, nx: -ox, ny: -oy, onInside, straight };
+  }
+
   progressFrac() {
     return this.maxProgress / (this.path.length - 1);
   }

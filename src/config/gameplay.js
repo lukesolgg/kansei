@@ -73,6 +73,14 @@ export const TUNING = {
   flickThrust: 360, // extra forward accel (units/s^2) at full flick energy
   flickSpeedBonus: 0.3, // flicking lifts the top-speed cap by up to this fraction
 
+  // ---- Walls: drift-friendly bounce + outer-wall proximity boost ---------
+  wallDriftScrub: 0.98, // speed kept when you brush a wall MID-DRIFT (vs 0.88 normal) — keeps the drift alive
+  wallDriftPush: 70, // gentle inward nudge (px/s) so a wall bump bounces you back onto your line
+  wallBoostMinSpeed: 130, // need this much speed for the outer-wall proximity boost
+  wallProxBand: 58, // how close to the OUTER wall (units) counts as "hugging" it
+  wallBoostThrust: 320, // forward accel (units/s^2) at the wall, fading to 0 at the band edge
+  wallSpeedBonus: 0.24, // hugging the outer wall lifts the top-speed cap by up to this fraction
+
   // Drift-charge → boost (mini-turbo): hold the handbrake in a slide to charge,
   // release for a forward blast that decays back to normal.
   driftBoostChargeMax: 2.2, // seconds of sliding for a full charge

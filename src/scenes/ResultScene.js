@@ -19,10 +19,27 @@ export default class ResultScene extends Phaser.Scene {
   }
 
   create() {
+    // Never let a bad result object throw out of create() — that escapes Phaser's
+    // step and freezes the whole game. Build inside a guard; on failure show a
+    // minimal screen that can still navigate out.
+    try {
+      this._build();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[KANSEI] result screen failed to build — safe fallback:', e);
+      this._fallback();
+    }
+  }
+
+  _build() {
     this.cameras.main.fadeIn(280, 0, 0, 0);
-    const level = getLevelById(this.levelId);
-    const zone = level.zoneData;
-    const r = this.result;
+    const level = getLevelById(this.levelId) || { name: '', zoneData: { accent: COLORS.cyan } };
+    const zone = level.zoneData || { accent: COLORS.cyan };
+    const r = this.result || {};
+    r.breakdown = r.breakdown || {};
+    if (typeof r.bestMultiplier !== 'number' || !isFinite(r.bestMultiplier)) r.bestMultiplier = 1;
+    if (typeof r.score !== 'number' || !isFinite(r.score)) r.score = 0;
+    if (typeof r.cash !== 'number' || !isFinite(r.cash)) r.cash = 0;
     this.backdrop = new Backdrop(this, { sunTop: r.cleared ? COLORS.lime : COLORS.red, sunBot: zone.accent, grid: zone.accent });
     scanlines(this);
     applyMenuFX(this.cameras.main);
@@ -92,6 +109,16 @@ export default class ResultScene extends Phaser.Scene {
     if (!r.cleared) {
       this.add.text(W / 2, btnY + 44, 'Clear the level to continue — try upgrading your car.', labelStyle(15, COLORS.textMute)).setOrigin(0.5);
     }
+  }
+
+  // Minimal screen shown if the full results build ever fails — guarantees a way out.
+  _fallback() {
+    const W = this.scale.width;
+    try { this.cameras.main.setBackgroundColor(0x07060f); } catch (_) {}
+    this.add.text(W / 2, 250, 'RUN COMPLETE', { ...titleStyle(54), color: hex(COLORS.white) }).setOrigin(0.5);
+    this.add.text(W / 2, 312, 'Tap to continue.', labelStyle(20, COLORS.textDim)).setOrigin(0.5);
+    neonButton(this, W / 2 - 135, 420, 250, 56, '☰ STAGES', { color: COLORS.purple, sfx: 'back' }, () => this._go('LevelSelectScene'));
+    neonButton(this, W / 2 + 135, 420, 250, 56, '🔧 GARAGE', { color: COLORS.cyan }, () => this._go('GarageScene'));
   }
 
   // Transition on a timer, not the fade-complete event (robust against post-FX).

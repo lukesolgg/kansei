@@ -92,6 +92,7 @@ export class Car {
     this.boost = 0; // current mini-turbo boost level (decays)
     this.boostFired = 0; // >0 on the frame a boost releases (for fx)
     this.driftLift = 0; // eased top-speed cap lift from drifting (carries pace out of a slide)
+    this.wallBoost = 0; // 0..1 outer-wall proximity boost (set by the scene from track geometry)
     this.flickEnergy = 0; // built by pumping the steer mid-drift (Scandinavian flick)
     this.flickFired = false; // true on the frame a fast reversal lands (for fx)
     this._steerSign = 0; // last significant steer direction (for flick detection)
@@ -282,6 +283,12 @@ export class Car {
       this.vx += cos * fa * dt;
       this.vy += sin * fa * dt;
     }
+    // Hugging the OUTER wall of a corner (wallBoost set by the scene) pulls you on.
+    if (this.wallBoost > 0 && !this.airborne && throttle > 0.1) {
+      const wa = TUNING.wallBoostThrust * this.wallBoost;
+      this.vx += cos * wa * dt;
+      this.vy += sin * wa * dt;
+    }
 
     // --- Drift-charge → boost (mini-turbo on release) ---
     if (handbrake && this.isDrifting && this.speed > 100) {
@@ -310,7 +317,12 @@ export class Car {
     this.speed = Math.hypot(this.vx, this.vy);
     const baseMax = this.forwardSpeed < -5 ? this.phys.maxSpeed * 0.4 : this.phys.maxSpeed;
     const max =
-      baseMax * (1 + this.boost * TUNING.driftBoostSpeedBonus + this.driftLift + this.flickEnergy * TUNING.flickSpeedBonus);
+      baseMax *
+      (1 +
+        this.boost * TUNING.driftBoostSpeedBonus +
+        this.driftLift +
+        this.flickEnergy * TUNING.flickSpeedBonus +
+        this.wallBoost * TUNING.wallSpeedBonus);
     if (this.speed > max) {
       const k = max / this.speed;
       this.vx *= k;

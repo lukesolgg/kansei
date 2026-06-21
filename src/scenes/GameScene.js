@@ -277,6 +277,9 @@ export default class GameScene extends Phaser.Scene {
     const hasFuel = this.fuel > 0;
 
     this.car.offTrack = this.car.airborne ? false : this.track.isOffTrack(this.car.x, this.car.y);
+    // Wall geometry (used by the proximity boost BEFORE the step + the bounce after).
+    const wctx = this.car.airborne ? null : this.track.wallContext(this.car.x, this.car.y);
+    this._setWallBoost(wctx);
     this.car.update(dt, input, hasFuel);
     if (this.car.justLanded) this._onLand();
     // Tire chirp puff each time a flick (steer pump) lands, for feedback.
@@ -288,7 +291,7 @@ export default class GameScene extends Phaser.Scene {
       this._pendingPickups.length = 0;
     }
     // Bounce off the track-edge walls (not while airborne — you fly over them).
-    if (!this.car.airborne) this._wallBounce();
+    if (!this.car.airborne) this._wallBounce(wctx);
 
     // Fuel burn (real time, so slow-mo doesn't refund fuel)
     if (hasFuel) {
@@ -389,27 +392,54 @@ export default class GameScene extends Phaser.Scene {
     this.underglow.setAlpha(0.16 + 0.45 * (this.car.isDrifting ? slip01 : 0) + 0.14 * speed01);
   }
 
-  // Keep the car inside the track by bouncing it off the edge walls.
-  _wallBounce() {
+  // Hugging the OUTER wall of a corner at speed gives an extra speed boost (set on
+  // the car so the physics clamp lifts for it). Closer to the wall = bigger boost.
+  _setWallBoost(wctx) {
+    this.car.wallBoost = 0;
+    if (!wctx || wctx.straight || wctx.onInside) return; // outer side of a corner only
+    if (this.car.speed < TUNING.wallBoostMinSpeed) return;
     const limit = this.track.half - this.carDef.gfxWidth * 0.42;
-    const info = this.track.edgeInfo(this.car.x, this.car.y);
+    const gap = limit - wctx.dist; // distance from the wall (>0 = inside the track)
+    if (gap > TUNING.wallProxBand || gap < -14) return;
+    const prox = 1 - Phaser.Math.Clamp(gap, 0, TUNING.wallProxBand) / TUNING.wallProxBand; // 1 at wall → 0 at band edge
+    this.car.wallBoost = prox;
+    if (prox > 0.45 && Math.random() < 0.5) this.smoke.emitParticleAt(this.car.x, this.car.y, 1);
+  }
+
+  // Keep the car inside the track by bouncing it off the edge walls. While drifting,
+  // the bounce is FORGIVING — a gentle nudge back onto your line that keeps the slide
+  // alive — so clipping the inside wall mid-drift doesn't kill your momentum.
+  _wallBounce(wctx) {
+    const c = this.car;
+    const info = wctx || this.track.wallContext(c.x, c.y);
+    const limit = this.track.half - this.carDef.gfxWidth * 0.42;
     if (info.dist <= limit) return;
     const over = info.dist - limit;
     // Shove the car back inside.
-    this.matter.body.setPosition(this.car.sprite.body, {
-      x: this.car.x + info.nx * over,
-      y: this.car.y + info.ny * over,
-    });
-    // Reflect the outward velocity component (bounce) + scrub a little speed.
-    const vn = this.car.vx * info.nx + this.car.vy * info.ny; // >0 = toward centre
-    if (vn < 0) {
-      const r = 0.35;
-      this.car.vx -= (1 + r) * vn * info.nx;
-      this.car.vy -= (1 + r) * vn * info.ny;
+    this.matter.body.setPosition(c.sprite.body, { x: c.x + info.nx * over, y: c.y + info.ny * over });
+    const vn = c.vx * info.nx + c.vy * info.ny; // >0 = moving toward centre
+    if (c.isDrifting) {
+      // Forgiving: cancel only the into-wall component (no harsh reflect), nudge back
+      // onto the line, and keep nearly all the speed so the drift carries on.
+      if (vn < 0) {
+        c.vx -= vn * info.nx;
+        c.vy -= vn * info.ny;
+      }
+      c.vx += info.nx * TUNING.wallDriftPush;
+      c.vy += info.ny * TUNING.wallDriftPush;
+      c.vx *= TUNING.wallDriftScrub;
+      c.vy *= TUNING.wallDriftScrub;
+    } else {
+      // Normal bounce: reflect the outward component + scrub a little speed.
+      if (vn < 0) {
+        const r = 0.35;
+        c.vx -= (1 + r) * vn * info.nx;
+        c.vy -= (1 + r) * vn * info.ny;
+      }
+      c.vx *= 0.88;
+      c.vy *= 0.88;
     }
-    this.car.vx *= 0.88;
-    this.car.vy *= 0.88;
-    if (this.car.speed > 150) this.smoke.emitParticleAt(this.car.x, this.car.y, 2);
+    if (c.speed > 150) this.smoke.emitParticleAt(c.x, c.y, 2);
   }
 
   _syncHud() {
@@ -516,7 +546,13 @@ export default class GameScene extends Phaser.Scene {
     const go = () => {
       if (this._resultStarted || !this.scene) return;
       this._resultStarted = true;
-      this.scene.start('ResultScene', { levelId: this.levelId, result });
+      try {
+        this.scene.start('ResultScene', { levelId: this.levelId, result });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[KANSEI] failed to open results — falling back to stages:', e);
+        try { this.scene.start('LevelSelectScene'); } catch (_) {}
+      }
     };
     this.time.delayedCall(560, go);
     window.setTimeout(() => { if (!this._resultStarted) go(); }, 1100);
