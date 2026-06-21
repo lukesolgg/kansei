@@ -80,6 +80,7 @@ export class Car {
     this.offTrack = false;
     this.crashCooldown = 0;
     this.effDrift = 0;
+    this._lastSteerDir = 1; // last steer side — the drift kicks out toward it
     this.driftWind = 0; // winds up the drift-angle cap while pinning full throttle
     this.driftCharge = 0; // builds while sliding with the handbrake
     this.boost = 0; // current mini-turbo boost level (decays)
@@ -128,48 +129,51 @@ export class Car {
     this.forwardSpeed = this.vx * cos + this.vy * sin;
     this.speed = Math.hypot(this.vx, this.vy);
 
-    // --- Steering (needs some speed; inverts in reverse) ---
-    // Authority ramps in with speed, then tapers at very high speed so the car
-    // doesn't snap-spin flat out — keeps the handling approachable.
+    // --- Steering: grippy normally; on the handbrake it sets the DRIFT ANGLE ---
     let speedFactor = Math.min(1, 0.35 + this.speed / 230);
     const hs = (this.speed - this.phys.maxSpeed * 0.7) / (this.phys.maxSpeed * 0.5);
     speedFactor *= 1 - 0.3 * Phaser.Math.Clamp(hs, 0, 1);
     const dirSign = this.forwardSpeed < -12 ? -1 : 1;
-    // Handbrake sharpens the yaw so the tail visibly kicks out.
-    const hbBoost = handbrake ? TUNING.handbrakeSteerBoost : 1;
-    // Extra steering authority while already sliding — swing wide around obstacles
-    // and pull the car right through a corner.
-    const driftSteer = 1 + Math.min(0.95, this.effDrift * TUNING.driftSteerGain);
-    this.heading += steer * TUNING.steerRate * this.phys.turn * speedFactor * dirSign * hbBoost * driftSteer * dt;
-    this.heading = normAngle(this.heading);
-    cos = Math.cos(this.heading);
-    sin = Math.sin(this.heading);
 
-    // --- Drift-angle governor (anti-spin lock with a throttle-set cap) ---
-    // The slip angle is eased back to a cap that depends on what you're doing:
-    //   no handbrake          -> tiny cap (grippy, barely slides)
-    //   handbrake + tap W      -> driftCapLow  (wide, shallow, long drift)
-    //   handbrake + hold W     -> driftCapHigh (tight, more angle)
-    //   handbrake + FULL W held -> the cap winds up (driftWind) past control into a
-    //                              spin, so feathering W is the balance point.
-    if (this.speed > 55) {
-      const travelAng = Math.atan2(this.vy, this.vx);
-      if (handbrake && throttle > TUNING.driftWindThrottle && this.driftAngle > 0.3 && this.speed > 110) {
+    // Remember the last steer direction (persists when you let go) — a drift kicks
+    // the tail out toward this side.
+    if (Math.abs(steer) > 0.15) this._lastSteerDir = Math.sign(steer);
+
+    const travelAng = Math.atan2(this.vy, this.vx);
+    const drifting = handbrake && this.speed > TUNING.minDriftSpeed;
+
+    if (drifting) {
+      // DRIFT: steer picks the SIDE the tail hangs; throttle sets the ANGLE.
+      // Holding full throttle winds the angle up past control into a spin.
+      if (throttle > TUNING.driftWindThrottle && this.driftAngle > 0.3 && this.speed > 110) {
         this.driftWind = Math.min(TUNING.driftWindMax, this.driftWind + TUNING.driftWindRate * dt);
       } else {
         this.driftWind = Math.max(0, this.driftWind - TUNING.driftWindDecay * dt);
       }
-      const cap = handbrake
-        ? TUNING.driftCapLow + throttle * (TUNING.driftCapHigh - TUNING.driftCapLow) + this.driftWind
-        : TUNING.gripDriftCap;
+      const mag = TUNING.driftCapLow + throttle * (TUNING.driftCapHigh - TUNING.driftCapLow) + this.driftWind;
+      const steerDir = Math.abs(steer) > 0.15 ? Math.sign(steer) : this._lastSteerDir || 1;
+      // A (steer -1) -> left drift (+slip = nose left of travel, tail out right).
+      const targetSlip = -steerDir * mag;
+      const desiredHeading = normAngle(travelAng - targetSlip);
+      // Ease the nose toward the target slip. Flip the steer and the tail swings
+      // THROUGH centre to the other side — a smooth feint, never an instant snap.
+      const diff = normAngle(desiredHeading - this.heading);
+      this.heading = normAngle(this.heading + diff * Math.min(1, TUNING.driftTurnRate * dt));
+    } else {
+      // NORMAL grippy steering.
+      const hbBoost = handbrake ? TUNING.handbrakeSteerBoost : 1;
+      this.heading += steer * TUNING.steerRate * this.phys.turn * speedFactor * dirSign * hbBoost * dt;
+      this.heading = normAngle(this.heading);
+      // Light clamp so grippy driving never accidentally slides out.
       const slip = normAngle(travelAng - this.heading);
-      if (Math.abs(slip) > cap) {
-        const target = normAngle(travelAng - Math.sign(slip) * cap);
+      if (this.speed > 55 && Math.abs(slip) > TUNING.gripDriftCap) {
+        const target = normAngle(travelAng - Math.sign(slip) * TUNING.gripDriftCap);
         this.heading = normAngle(this.heading + normAngle(target - this.heading) * TUNING.antiSpinEase);
-        cos = Math.cos(this.heading);
-        sin = Math.sin(this.heading);
       }
+      this.driftWind = Math.max(0, this.driftWind - TUNING.driftWindDecay * dt);
     }
+    cos = Math.cos(this.heading);
+    sin = Math.sin(this.heading);
 
     // --- Engine / brake along the forward axis ---
     if (throttle > 0) {
@@ -206,28 +210,11 @@ export class Car {
     this.forwardSpeed = this.vx * cos + this.vy * sin;
     const latX = this.vx - cos * this.forwardSpeed;
     const latY = this.vy - sin * this.forwardSpeed;
-    let gripMul = 1;
-    if (handbrake) {
-      gripMul *= TUNING.handbrakeGripMul;
-      gripMul *= 1 - TUNING.powerOverGrip * throttle;
-    }
+    const gripMul = handbrake ? TUNING.handbrakeGripMul : 1;
     const gripKill = TUNING.gripKill * this.phys.grip * gripMul;
     const keep = Math.max(0, 1 - gripKill * dt);
     this.vx = cos * this.forwardSpeed + latX * keep;
     this.vy = sin * this.forwardSpeed + latY * keep;
-
-    // --- Drift steering: rear wash-out (HANDBRAKE ONLY, real counter-steer) ---
-    // Only while the handbrake is held does steering shove the car sideways: the
-    // rear washes OUT the OPPOSITE way to the steer (turn in left -> slide right),
-    // so you point into the corner yet slide wide and counter-steer to hold it.
-    // Without the handbrake, A/D just steer normally (no sideways slide).
-    if (handbrake && this.speed > TUNING.minDriftSpeed && Math.abs(steer) > 0.05) {
-      const rx = -sin; // car's right direction (+steer = D)
-      const ry = cos;
-      const kick = -steer * TUNING.driftSteerKick * this.speed * dt;
-      this.vx += rx * kick;
-      this.vy += ry * kick;
-    }
 
     // --- Drift-charge → boost (mini-turbo) ---
     if (handbrake && this.isDrifting && this.speed > 100) {

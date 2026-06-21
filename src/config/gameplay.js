@@ -15,9 +15,8 @@ export const TUNING = {
   // Lateral grip: fraction of sideways velocity killed per second.
   // Higher = sticks; lower = slides. Lowered for an icy, slidey base feel.
   gripKill: 7.5, // base lateral grip — HIGH, so normal driving is grippy; drift comes from the handbrake
-  handbrakeGripMul: 0.06, // handbrake breaks traction → the rear steps out
-  handbrakeSteerBoost: 1.45, // handbrake sharpens the yaw so the tail snaps out
-  powerOverGrip: 0.5, // while handbraking, throttle further cuts grip → TIGHTER drift (hold W = tight, tap = wide)
+  handbrakeGripMul: 0.3, // grip while drifting: low enough to slide, high enough to carve a corner
+  driftTurnRate: 6.0, // how fast the nose eases to the target drift angle (= flip/feint speed)
   coastDrag: 0.85, // extra drag off the throttle — lifting W slows you (engine braking)
   driftAngleForSlide: 0.16, // rad — beyond this heading/velocity gap you're "drifting"
   minDriftSpeed: 70,
