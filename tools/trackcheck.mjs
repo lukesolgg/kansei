@@ -1,23 +1,24 @@
-// Offline geometry verifier for KANSEI track layouts. Builds the centreline from
-// the segment DSL (mirroring config/levels.js buildPath) and reports total length,
-// self-overlap (non-adjacent centreline points closer than the road width), and
-// the cumulative distance at each segment boundary (so jumps can be placed by
-// fraction). Hairpins legitimately bring the road close to itself, so the
-// threshold is set below 2*half and we skip a window of same-stretch neighbours.
+// Offline geometry verifier for KANSEI tracks — now for CLOSED LOOPS.
 //
-// Usage: node tools/trackcheck.mjs
+// Closure trick: a half-loop HALF with exactly +180 deg of net turning, repeated
+// twice, is 180-deg rotationally symmetric and closes EXACTLY (end == start,
+// heading wraps to 0). So we only hand-tune HALF; the full loop = HALF + HALF.
+//
+// Reports: net turning, closure error (should be ~0), cyclic self-overlap (the
+// seam where end meets start is allowed), total length, bbox, and the loop's
+// jump fraction. Usage: node tools/trackcheck.mjs
 
 const STEP = 26;
 
-function buildPath(segments, startAngleDeg = 0) {
+function deg2rad(d) { return (d * Math.PI) / 180; }
+
+function buildPath(segments) {
   const pts = [{ x: 0, y: 0 }];
-  let x = 0, y = 0;
-  let ang = (startAngleDeg * Math.PI) / 180;
-  const bounds = []; // cumulative arc length at the END of each segment
+  let x = 0, y = 0, ang = 0, net = 0;
+  const bounds = [];
   let cum = 0;
   for (const seg of segments) {
-    const kind = seg[0];
-    if (kind === 's') {
+    if (seg[0] === 's') {
       const len = seg[1];
       const n = Math.max(1, Math.round(len / STEP));
       const d = len / n;
@@ -25,64 +26,72 @@ function buildPath(segments, startAngleDeg = 0) {
       cum += len;
     } else {
       const deg = seg[1], radius = seg[2];
-      const dir = kind === 'l' ? -1 : 1;
+      const dir = seg[0] === 'l' ? -1 : 1;
+      net += dir * deg;
       const arcLen = (Math.abs(deg) * Math.PI * radius) / 180;
       const n = Math.max(3, Math.round(arcLen / STEP));
-      const dAng = (dir * deg * Math.PI) / 180 / n;
+      const dAng = (dir * deg2rad(deg)) / n;
       const d = arcLen / n;
       for (let i = 0; i < n; i++) { ang += dAng; x += Math.cos(ang) * d; y += Math.sin(ang) * d; pts.push({ x, y }); }
       cum += arcLen;
     }
     bounds.push(cum);
   }
-  return { pts, bounds };
+  return { pts, bounds, endAng: ang, net };
 }
 
-function pathLength(pts) {
-  let len = 0;
-  for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-  return len;
-}
-
-// --- The GENTEN layout (base roadWidth before the global x1.25). ---
-const ROAD_BASE = 320;
+// ---- GENTEN closed loop: design HALF (net +180), loop = HALF + HALF ----
+const ROAD_BASE = 300;
 const EFF_HALF = (ROAD_BASE * 1.25) / 2;
-const JUMP_SEG = 7; // segment index of the jump straight
-const segments = [
-  ['s', 600], // 0  intro straight (entry speed)
-  ['r', 90, 480], // 1  fast right sweeper (hold angle)
-  ['s', 300], // 2  short link
-  ['l', 180, 285], // 3  left hairpin (the key element)
-  ['s', 520], // 4  diagonal straight (variety)
-  ['r', 70, 360], // 5  right sweeper into the esses
-  ['l', 90, 280], // 6  left transition (flick)
-  ['s', 700], // 7  JUMP straight (can cut the next corner)
-  ['r', 180, 285], // 8  right hairpin
-  ['s', 380], // 9  link
-  ['l', 160, 460], // 10 massive left sweeper (big drift)
-  ['r', 60, 320], // 11 right kink
-  ['s', 400], ['l', 80, 300], ['s', 360], ['r', 50, 340], ['s', 500], // 12+ flowing run to finish
+const HALF = [
+  ['s', 620],        // start straight (entry speed)
+  ['r', 90, 470],    // fast sweeper
+  ['s', 300],
+  ['l', 50, 320],    // esse out
+  ['s', 240],
+  ['r', 80, 330],    // sweeper back
+  ['s', 340],
+  ['l', 45, 300],    // flick
+  ['s', 240],
+  ['r', 105, 270],   // tighter right to set up the return
 ];
+// net of HALF must be +180:  +90 -50 +80 -45 +105 = +180
+const segments = [...HALF, ...HALF];
 
-const { pts, bounds } = buildPath(segments);
-const total = pathLength(pts);
+const { pts, bounds, endAng, net } = buildPath(segments);
+const N = pts.length;
+
+// closure error (compare last point to first; ignore the duplicate first point)
+const last = pts[N - 1];
+const dxy = Math.hypot(last.x - pts[0].x, last.y - pts[0].y);
+const headDeg = ((endAng * 180) / Math.PI) % 360;
+
+// total length
+let total = 0;
+for (let i = 1; i < N; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+
+// cyclic self-overlap: skip neighbours within WINDOW on the ring (incl. the seam)
 const WINDOW = 26;
 const THRESH = EFF_HALF * 2 * 0.92;
-
-let minSep = Infinity, worst = null;
-let hits = 0;
-for (let i = 0; i < pts.length; i++) {
-  for (let j = i + WINDOW; j < pts.length; j++) {
+let minSep = Infinity, worst = null, hits = 0;
+for (let i = 0; i < N; i++) {
+  for (let j = i + 1; j < N; j++) {
+    const cyc = Math.min(j - i, N - (j - i));
+    if (cyc < WINDOW) continue;
     const dd = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
     if (dd < minSep) { minSep = dd; worst = [i, j]; }
     if (dd < THRESH) hits++;
   }
 }
 
+let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+for(const p of pts){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);}
+
+console.log('HALF net turning:', net, '(must be 180)');
+console.log('CLOSURE error: position', Math.round(dxy), ' heading', Math.round(headDeg), '(both ~0 = closed)');
 console.log('total length:', Math.round(total), ' road width:', Math.round(EFF_HALF * 2));
 console.log('overlap threshold (<):', Math.round(THRESH), ' min separation:', Math.round(minSep), 'at', worst);
-console.log('OVERLAP HITS:', hits);
-// jump on the mid-point of the JUMP_SEG straight
-const jMid = (bounds[JUMP_SEG - 1] + bounds[JUMP_SEG]) / 2;
-console.log('jump straight: start', Math.round(bounds[JUMP_SEG - 1]), ' end', Math.round(bounds[JUMP_SEG]), ' mid', Math.round(jMid));
-console.log('=> jumpFrac (mid of jump straight):', (jMid / total).toFixed(3));
+console.log('CYCLIC OVERLAP HITS:', hits);
+console.log('bbox:', Math.round(maxX - minX), 'x', Math.round(maxY - minY));
+// place the free-mode/start jump on the mid of the first segment (the start straight)
+console.log('start-straight mid frac:', ((bounds[0] / 2) / total).toFixed(3));

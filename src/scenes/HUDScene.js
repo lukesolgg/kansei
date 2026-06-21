@@ -44,6 +44,7 @@ export default class HUDScene extends Phaser.Scene {
       .text(W / 2, 22, this.gs.level.name.toUpperCase(), { ...titleStyle(22), color: hex(this.gs.level.zoneData.accent) })
       .setOrigin(0.5)
       .setLetterSpacing(3);
+    this.lapText = this.add.text(W / 2, 70, '', labelStyle(18, COLORS.cyan)).setOrigin(0.5).setLetterSpacing(3);
     this.progG = this.add.graphics();
 
     // Cash (top-right)
@@ -108,6 +109,7 @@ export default class HUDScene extends Phaser.Scene {
 
     this.cashText.setText('$' + fmt(h.cash));
     this.speedText.setText(h.speed);
+    if (this.lapText) this.lapText.setText(h.freeMode ? 'LAP ' + (h.laps || 0) : '');
 
     // Progress bar (top-center)
     const pw = 300;

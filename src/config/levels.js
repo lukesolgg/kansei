@@ -87,34 +87,34 @@ export const ZONES = {
   },
 };
 
+// GENTEN closed circuit. A half-loop with exactly +180° of net turning, repeated
+// twice, is 180°-rotationally symmetric so the full loop closes EXACTLY (verified
+// with tools/trackcheck.mjs: closure error 0, no self-overlap). Mixed corner types
+// for flow: sweeper, esses to flick through, a tighter right to set up the return.
+const GENTEN_HALF = [
+  ['s', 620], // start straight (entry speed)
+  ['r', 90, 470], // fast sweeper
+  ['s', 300],
+  ['l', 50, 320], // esse out
+  ['s', 240],
+  ['r', 80, 330], // sweeper back
+  ['s', 340],
+  ['l', 45, 300], // flick
+  ['s', 240],
+  ['r', 105, 270], // tighter right to set up the return (net of HALF = +180)
+];
+
 // Raw level definitions. order is the global index (drives unlock + difficulty).
 const RAW = [
   // ---- Neon Docks --------------------------------------------------------
   {
-    id: 'genten', zone: 'docks', name: 'Genten', order: 0,
-    roadWidth: 320, fuelStart: 0.82, scoreBronze: 14000, scoreGold: 30000,
-    fuelCans: 10, cashTokens: 22, boosters: 4, ramps: 0, jumpFracs: [0.452, 0.97],
-    // GENTEN (原点, "the origin"). Spread-out, flowing layout (verified overlap-free
-    // via tools/trackcheck.mjs) built on real drift-track principles — mixed corner
-    // types, transitions to flick through, never 3 hairpins in a row:
-    // straight -> fast right sweeper -> left hairpin -> diagonal -> right sweeper ->
-    // left flick -> JUMP straight -> right hairpin -> big left sweeper (huge drift)
-    // -> right kink -> esses -> finish jump (portal).
-    segments: [
-      ['s', 600],
-      ['r', 90, 480],
-      ['s', 300],
-      ['l', 180, 285],
-      ['s', 520],
-      ['r', 70, 360],
-      ['l', 90, 280],
-      ['s', 700],
-      ['r', 180, 285],
-      ['s', 380],
-      ['l', 160, 460],
-      ['r', 60, 320],
-      ['s', 400], ['l', 80, 300], ['s', 360], ['r', 50, 340], ['s', 500],
-    ],
+    id: 'genten', zone: 'docks', name: 'Genten — Free Run', order: 0,
+    loop: true, mode: 'free', // closed circuit: drive endless laps for a high score
+    roadWidth: 300, fuelStart: 1.0, scoreBronze: 22000, scoreGold: 48000,
+    fuelCans: 14, cashTokens: 24, boosters: 5, ramps: 0, jumpFracs: [],
+    // GENTEN (原点, "the origin") — a CLOSED LOOP (half-loop repeated twice, closes
+    // exactly). Free Mode: lap it continuously, score builds, run ends on fuel out.
+    segments: [...GENTEN_HALF, ...GENTEN_HALF],
   },
   {
     id: 'docks-2', zone: 'docks', name: 'Container Run', order: 1,

@@ -29,6 +29,9 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.fadeIn(260, 0, 0, 0);
     const level = getLevelById(this.levelId);
     this.level = level;
+    this.freeMode = !!level.loop; // closed-circuit free run (laps + score)
+    this.laps = 0;
+    this._lapFrac = 0;
     const carDef = CARS[Save.selectedCar] || CARS.ae86;
     this.carDef = carDef;
     const ups = Save.getUpgrades(carDef.id);
@@ -116,6 +119,7 @@ export default class GameScene extends Phaser.Scene {
     return {
       score: 0, multiplier: 1, driftMult: 1, speedMult: 1, chain: 0, driftActive: false,
       fuel: this.fuel / this.fuelMax, fuelLow: false, outOfFuel: false, boostCharge: 0,
+      freeMode: !!this.freeMode, laps: 0,
       speed: 0, progress: 0, cash: 0, level: this.level,
       paused: false, state: 'intro',
     };
@@ -348,6 +352,13 @@ export default class GameScene extends Phaser.Scene {
 
     this._updateCamera();
 
+    // Free mode: count laps as you cross the start/finish seam.
+    if (this.freeMode && !this.car.airborne) {
+      const f = this.track.loopFrac(this.car.x, this.car.y);
+      if (this._lapFrac > 0.75 && f < 0.25) this._onLap();
+      this._lapFrac = f;
+    }
+
     // End conditions (timers use real time)
     if (this.track.isFinished(this.car.x, this.car.y)) {
       this._win();
@@ -468,6 +479,18 @@ export default class GameScene extends Phaser.Scene {
     if (c.speed > 150) this.smoke.emitParticleAt(c.x, c.y, 2);
   }
 
+  // Free mode: a completed lap tops up fuel (keep the run alive), pays a bonus,
+  // and counts toward your lap total.
+  _onLap() {
+    if (this.state !== 'play') return;
+    this.laps++;
+    this.scorer.addBonus(500);
+    this.fuel = Math.min(this.fuelMax, this.fuel + this.fuelMax * 0.3);
+    this._popup(this.car.x, this.car.y - 32, 'LAP ' + this.laps, COLORS.cyan);
+    pulseBloom(this.fx, 2);
+    Audio.sfx('win');
+  }
+
   _syncHud() {
     const h = this.hud;
     h.score = this.scorer.score;
@@ -481,7 +504,9 @@ export default class GameScene extends Phaser.Scene {
     h.outOfFuel = this.fuel <= 0;
     h.boostCharge = this.car.driftChargeFrac;
     h.speed = Math.round(this.car.speed * 0.3); // arcade MPH
-    h.progress = this.track.progressFrac();
+    h.freeMode = this.freeMode;
+    h.laps = this.laps;
+    h.progress = this.freeMode ? this._lapFrac : this.track.progressFrac();
     h.cash = this.cashCollected;
     h.paused = this.paused;
     h.state = this.state;
@@ -546,13 +571,17 @@ export default class GameScene extends Phaser.Scene {
     if (this.state === 'over') return;
     this.state = 'over';
     Audio.stopEngine();
-    Audio.sfx('lose');
+    Audio.sfx(this.freeMode ? 'win' : 'lose');
     const score = this.scorer.score;
-    const cashFromScore = Math.round(score * TUNING.cashPerScore * 0.5);
-    const cash = this.cashCollected + cashFromScore;
+    // A free run is a score attack, not a failure — full cash + a per-lap bonus.
+    const mult = this.freeMode ? 1 : 0.5;
+    const lapBonus = this.freeMode ? this.laps * 100 : 0;
+    const cashFromScore = Math.round(score * TUNING.cashPerScore * mult);
+    const cash = this.cashCollected + cashFromScore + lapBonus;
     this._finish({
-      cleared: false, stars: 0, score, cash, progress: this.track.progressFrac(),
-      breakdown: { tokens: this.cashCollected, drift: cashFromScore, finish: 0, stars: 0 },
+      cleared: false, freeMode: this.freeMode, laps: this.laps,
+      stars: 0, score, cash, progress: this.freeMode ? 1 : this.track.progressFrac(),
+      breakdown: { tokens: this.cashCollected, drift: cashFromScore, finish: lapBonus, stars: 0 },
       bestMultiplier: this.scorer.bestMultiplier,
     });
   }

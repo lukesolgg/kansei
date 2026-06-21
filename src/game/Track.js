@@ -30,6 +30,7 @@ export class Track {
     this.path = level.path;
     this.half = level.roadWidth / 2;
     this.zone = level.zoneData;
+    this.isLoop = !!level.loop; // closed circuit (free mode laps it)
     this.pickups = []; // { sprite, halo, type, value, collected }
     this.pads = []; // boosters + ramps (persistent sensors)
     this._lastIdx = 0;
@@ -425,16 +426,23 @@ export class Track {
   // Windowed nearest-point search around the last known index.
   _nearest(x, y) {
     const p = this.path;
+    const n = p.length;
     const W = 70;
-    let lo = Math.max(0, this._lastIdx - 20);
-    let hi = Math.min(p.length - 1, this._lastIdx + W);
     let bestD = Infinity;
     let bestI = this._lastIdx;
-    for (let i = lo; i <= hi; i++) {
-      const d = (p[i].x - x) ** 2 + (p[i].y - y) ** 2;
-      if (d < bestD) {
-        bestD = d;
-        bestI = i;
+    if (this.isLoop) {
+      // Cyclic window so the search wraps across the start/finish seam.
+      for (let k = -20; k <= W; k++) {
+        const i = (((this._lastIdx + k) % n) + n) % n;
+        const d = (p[i].x - x) ** 2 + (p[i].y - y) ** 2;
+        if (d < bestD) { bestD = d; bestI = i; }
+      }
+    } else {
+      const lo = Math.max(0, this._lastIdx - 20);
+      const hi = Math.min(n - 1, this._lastIdx + W);
+      for (let i = lo; i <= hi; i++) {
+        const d = (p[i].x - x) ** 2 + (p[i].y - y) ** 2;
+        if (d < bestD) { bestD = d; bestI = i; }
       }
     }
     // Fallback: if we strayed far, full scan.
@@ -510,7 +518,13 @@ export class Track {
     return this.maxProgress / (this.path.length - 1);
   }
 
+  // Position around a loop, 0..1 (current nearest index / length). For lap tracking.
+  loopFrac(x, y) {
+    return this._nearest(x, y).index / (this.path.length - 1);
+  }
+
   isFinished(x, y) {
+    if (this.isLoop) return false; // a loop never "finishes" — free mode laps it
     const last = this.path[this.path.length - 1];
     const near = Math.hypot(x - last.x, y - last.y) < this.half * 1.4;
     return this.progressFrac() > 0.97 && near;

@@ -50,13 +50,16 @@ export default class ResultScene extends Phaser.Scene {
     const W = this.scale.width;
 
     // Banner
-    const titleColor = r.cleared ? COLORS.lime : COLORS.red;
-    this.add.text(W / 2, 90, r.cleared ? 'STAGE CLEAR' : 'OUT OF FUEL', { ...titleStyle(64), color: hex(titleColor) })
+    const titleColor = r.freeMode ? COLORS.cyan : r.cleared ? COLORS.lime : COLORS.red;
+    const bannerText = r.freeMode ? 'FREE RUN' : r.cleared ? 'STAGE CLEAR' : 'OUT OF FUEL';
+    this.add.text(W / 2, 90, bannerText, { ...titleStyle(64), color: hex(titleColor) })
       .setOrigin(0.5).setLetterSpacing(8).setShadow(0, 0, hex(titleColor), 24, false, true);
     this.add.text(W / 2, 142, level.name, labelStyle(24, COLORS.textDim)).setOrigin(0.5);
 
-    // Stars
-    if (r.cleared) {
+    // Stars / lap total / fuel hint
+    if (r.freeMode) {
+      this.add.text(W / 2, 214, `${r.laps || 0} LAP${(r.laps || 0) === 1 ? '' : 'S'} — keep drifting for a higher score`, labelStyle(22, COLORS.cyan)).setOrigin(0.5);
+    } else if (r.cleared) {
       const sy = 220;
       for (let i = 0; i < 3; i++) {
         const on = i < r.stars;
