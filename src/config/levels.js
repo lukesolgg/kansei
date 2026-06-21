@@ -93,7 +93,7 @@ const RAW = [
   {
     id: 'docks-1', zone: 'docks', name: 'Harbor Warmup', order: 0,
     roadWidth: 330, fuelStart: 0.78, scoreBronze: 12000, scoreGold: 26000,
-    fuelCans: 6, cashTokens: 16, obstacles: 10, boosters: 4, ramps: 2, trashCans: 8,
+    fuelCans: 6, cashTokens: 16, boosters: 4, ramps: 2,
     // Long technical switchback: six 180° horseshoes of varied tightness.
     segments: [
       ['s', 600], ['r', 180, 300], ['s', 560], ['l', 180, 260], ['s', 520],
@@ -104,13 +104,13 @@ const RAW = [
   {
     id: 'docks-2', zone: 'docks', name: 'Container Run', order: 1,
     roadWidth: 370, fuelStart: 0.66, scoreBronze: 8000, scoreGold: 17000,
-    fuelCans: 5, cashTokens: 10, obstacles: 6,
+    fuelCans: 5, cashTokens: 10,
     segments: [['s', 700], ['l', 90, 320], ['s', 600], ['r', 90, 320], ['s', 520], ['r', 70, 340], ['s', 700]],
   },
   {
     id: 'docks-3', zone: 'docks', name: 'Pier Pressure', order: 2,
     roadWidth: 360, fuelStart: 0.62, scoreBronze: 10000, scoreGold: 21000,
-    fuelCans: 6, cashTokens: 12, obstacles: 8,
+    fuelCans: 6, cashTokens: 12,
     segments: [['s', 600], ['r', 120, 280], ['s', 520], ['l', 120, 280], ['s', 720], ['l', 80, 320], ['s', 520], ['r', 80, 320], ['s', 600]],
   },
 
@@ -118,19 +118,19 @@ const RAW = [
   {
     id: 'touge-1', zone: 'touge', name: 'First Climb', order: 3,
     roadWidth: 320, fuelStart: 0.62, scoreBronze: 12000, scoreGold: 24000,
-    fuelCans: 6, cashTokens: 12, obstacles: 8,
+    fuelCans: 6, cashTokens: 12,
     segments: [['s', 600], ['l', 150, 210], ['s', 420], ['r', 150, 210], ['s', 520], ['l', 90, 250], ['s', 520]],
   },
   {
     id: 'touge-2', zone: 'touge', name: 'Switchback', order: 4,
     roadWidth: 315, fuelStart: 0.58, scoreBronze: 14000, scoreGold: 29000,
-    fuelCans: 7, cashTokens: 14, obstacles: 11,
+    fuelCans: 7, cashTokens: 14,
     segments: [['s', 520], ['r', 160, 200], ['s', 360], ['l', 160, 200], ['s', 360], ['r', 140, 215], ['s', 420], ['l', 90, 235], ['s', 520]],
   },
   {
     id: 'touge-3', zone: 'touge', name: 'Mountain King', order: 5,
     roadWidth: 310, fuelStart: 0.56, scoreBronze: 17000, scoreGold: 35000,
-    fuelCans: 8, cashTokens: 16, obstacles: 13,
+    fuelCans: 8, cashTokens: 16,
     segments: [['s', 520], ['l', 120, 235], ['s', 420], ['r', 150, 205], ['s', 360], ['l', 150, 205], ['s', 420], ['r', 110, 245], ['s', 420], ['l', 80, 275], ['s', 520]],
   },
 
@@ -138,19 +138,19 @@ const RAW = [
   {
     id: 'exp-1', zone: 'expressway', name: 'Night Run', order: 6,
     roadWidth: 350, fuelStart: 0.6, scoreBronze: 18000, scoreGold: 38000,
-    fuelCans: 7, cashTokens: 14, obstacles: 12,
+    fuelCans: 7, cashTokens: 14,
     segments: [['s', 1200], ['l', 70, 480], ['s', 900], ['r', 80, 460], ['s', 1100]],
   },
   {
     id: 'exp-2', zone: 'expressway', name: 'Skyline Loop', order: 7,
     roadWidth: 340, fuelStart: 0.56, scoreBronze: 21000, scoreGold: 44000,
-    fuelCans: 8, cashTokens: 16, obstacles: 14,
+    fuelCans: 8, cashTokens: 16,
     segments: [['s', 1000], ['r', 90, 440], ['s', 820], ['l', 120, 320], ['s', 720], ['r', 100, 400], ['s', 900]],
   },
   {
     id: 'exp-3', zone: 'expressway', name: 'Final Apex', order: 8,
     roadWidth: 330, fuelStart: 0.54, scoreBronze: 25000, scoreGold: 52000,
-    fuelCans: 9, cashTokens: 18, obstacles: 16,
+    fuelCans: 9, cashTokens: 18,
     segments: [['s', 900], ['l', 80, 460], ['s', 720], ['r', 130, 300], ['s', 520], ['l', 150, 260], ['s', 520], ['r', 90, 380], ['s', 820], ['l', 100, 360], ['s', 900]],
   },
 ];

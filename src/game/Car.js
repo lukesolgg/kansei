@@ -91,6 +91,7 @@ export class Car {
     this.driftCharge = 0; // builds while sliding with the handbrake
     this.boost = 0; // current mini-turbo boost level (decays)
     this.boostFired = 0; // >0 on the frame a boost releases (for fx)
+    this.driftLift = 0; // eased top-speed cap lift from drifting (carries pace out of a slide)
     this._prevHandbrake = false;
   }
 
@@ -225,7 +226,37 @@ export class Car {
     }
     this.forwardSpeed = this.vx * cos + this.vy * sin;
 
-    // --- Drift-charge → boost (mini-turbo) ---
+    // --- Drift state for scoring / fx (computed BEFORE the speed work so the
+    // boost charge + drift thrust react to THIS frame's slide) ---
+    if (this.speed > 8) {
+      const velAng = Math.atan2(this.vy, this.vx);
+      this.slip = normAngle(velAng - this.heading); // signed slip angle
+      this.driftAngle = Math.abs(this.slip);
+    } else {
+      this.slip = 0;
+      this.driftAngle = 0;
+    }
+    // Drift angle near PI means we're sliding backwards — treat as the rear stepping out.
+    const effDrift = this.driftAngle > Math.PI / 2 ? Math.PI - this.driftAngle : this.driftAngle;
+    this.isSpinning = this.driftAngle > TUNING.spinDriftAngle && this.driftAngle < Math.PI - TUNING.spinDriftAngle;
+    this.isDrifting =
+      this.speed > TUNING.minDriftSpeed &&
+      effDrift > TUNING.driftAngleForSlide &&
+      !this.isSpinning &&
+      this.crashCooldown <= 0;
+    this.effDrift = effDrift;
+
+    // --- Drift = speed: a clean slide on the gas PULLS you forward and lifts the
+    // top-speed cap, so chaining drifts is how you build pace (and score). Deeper
+    // angle = more drive, up to a peak; over-rotate into a spin and you lose it. ---
+    if (this.isDrifting && !this.offTrack && throttle > 0.1) {
+      const q = Math.min(1, this.effDrift / TUNING.driftThrustPeak);
+      const a = TUNING.driftThrust * q;
+      this.vx += cos * a * dt;
+      this.vy += sin * a * dt;
+    }
+
+    // --- Drift-charge → boost (mini-turbo on release) ---
     if (handbrake && this.isDrifting && this.speed > 100) {
       this.driftCharge = Math.min(TUNING.driftBoostChargeMax, this.driftCharge + dt);
     } else if (!handbrake) {
@@ -244,35 +275,20 @@ export class Car {
     this._prevHandbrake = handbrake;
     if (this.boost > 0) this.boost = Math.max(0, this.boost - TUNING.driftBoostDecay * dt);
 
-    // --- Clamp top speed (boost temporarily lifts the cap) ---
+    // --- Clamp top speed. Drifting + boost lift the cap; the drift lift EASES in
+    // and bleeds off slowly so the speed you build carries out of the slide. ---
+    const targetLift = this.isDrifting && !this.offTrack ? TUNING.driftSpeedBonus : 0;
+    const liftRate = targetLift > this.driftLift ? TUNING.driftLiftRise : TUNING.driftLiftFall;
+    this.driftLift += (targetLift - this.driftLift) * Math.min(1, liftRate * dt);
     this.speed = Math.hypot(this.vx, this.vy);
     const baseMax = this.forwardSpeed < -5 ? this.phys.maxSpeed * 0.4 : this.phys.maxSpeed;
-    const max = baseMax * (1 + this.boost * TUNING.driftBoostSpeedBonus);
+    const max = baseMax * (1 + this.boost * TUNING.driftBoostSpeedBonus + this.driftLift);
     if (this.speed > max) {
       const k = max / this.speed;
       this.vx *= k;
       this.vy *= k;
       this.speed = max;
     }
-
-    // --- Drift state for scoring / fx ---
-    if (this.speed > 8) {
-      const velAng = Math.atan2(this.vy, this.vx);
-      this.slip = normAngle(velAng - this.heading); // signed slip angle
-      this.driftAngle = Math.abs(this.slip);
-    } else {
-      this.slip = 0;
-      this.driftAngle = 0;
-    }
-    // Drift angle near PI means we're sliding backwards — treat as the rear stepping out.
-    const effDrift = this.driftAngle > Math.PI / 2 ? Math.PI - this.driftAngle : this.driftAngle;
-    this.isSpinning = this.driftAngle > TUNING.spinDriftAngle && this.driftAngle < Math.PI - TUNING.spinDriftAngle;
-    this.isDrifting =
-      this.speed > TUNING.minDriftSpeed &&
-      effDrift > TUNING.driftAngleForSlide &&
-      !this.isSpinning &&
-      this.crashCooldown <= 0;
-    this.effDrift = effDrift;
 
     // --- Spin recovery: after a spin-out, once you straighten + slow down, a small
     // nudge to get going again (deliberately less than holding a clean drift). ---
@@ -327,21 +343,6 @@ export class Car {
     if (this.airborne > 0) return;
     this.airborne = duration;
     this.airMax = duration;
-  }
-
-  // Bounce off an obstacle at (ox, oy): shove outward and bleed speed.
-  crashInto(ox, oy) {
-    if (this.crashCooldown > 0) return false;
-    const ax = this.x - ox;
-    const ay = this.y - oy;
-    const d = Math.hypot(ax, ay) || 1;
-    const nx = ax / d;
-    const ny = ay / d;
-    const newSpeed = this.speed * (1 - TUNING.crashSpeedLoss);
-    this.vx = nx * newSpeed * 0.85 + this.vx * 0.1;
-    this.vy = ny * newSpeed * 0.85 + this.vy * 0.1;
-    this.crashCooldown = 0.35;
-    return true;
   }
 
   // 0..1 engine load for the audio engine note.

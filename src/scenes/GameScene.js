@@ -63,7 +63,6 @@ export default class GameScene extends Phaser.Scene {
     // Pickups touched during a physics step are queued and processed AFTER the
     // step — destroying a Matter body mid-step corrupts the engine.
     this._pendingPickups = [];
-    this._pendingTrash = null;
 
     // Particles
     this._particles();
@@ -130,11 +129,6 @@ export default class GameScene extends Phaser.Scene {
       scale: { start: 0.9, end: 3.4 }, alpha: { start: 0.45, end: 0 },
       tint: 0xece6ff, blendMode: 'ADD', emitting: false,
     }).setDepth(28);
-    this.sparks = this.add.particles(0, 0, 'spark', {
-      lifespan: 460, speed: { min: 120, max: 360 }, angle: { min: 0, max: 360 },
-      scale: { start: 1.5, end: 0 }, alpha: { start: 1, end: 0 },
-      tint: [0xffd23f, 0xff7a18, 0xffffff], blendMode: 'ADD', emitting: false,
-    }).setDepth(30);
     this.collectFx = this.add.particles(0, 0, 'spark', {
       lifespan: 520, speed: { min: 60, max: 200 }, angle: { min: 0, max: 360 },
       scale: { start: 1.3, end: 0 }, alpha: { start: 1, end: 0 },
@@ -178,14 +172,10 @@ export default class GameScene extends Phaser.Scene {
       if (other.label === 'fuel' || other.label === 'cash') {
         // Defer: don't destroy the pickup body inside the physics step.
         if (other.gameObject && other.gameObject.body) this._pendingPickups.push(other.gameObject);
-      } else if (other.label === 'obstacle') {
-        if (!this.car.airborne) this._crash(other.position.x, other.position.y);
       } else if (other.label === 'booster') {
         this._boostPad();
       } else if (other.label === 'ramp') {
         this._hitRamp();
-      } else if (other.label === 'trash') {
-        if (!this.car.airborne && other.gameObject) this._pendingTrash = other.gameObject;
       }
     }
   }
@@ -214,17 +204,6 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  _crash(ox, oy) {
-    if (this.state !== 'play') return;
-    if (this.car.crashInto(ox, oy)) {
-      this.scorer.crash();
-      Audio.sfx('crash');
-      this.sparks.emitParticleAt(this.car.x, this.car.y, 18);
-      if (Save.settings.shake) this.cameras.main.shake(TUNING.crashShakeMs, 0.016);
-      if (!Save.settings.reduceMotion) this._hitStop(TUNING.hitStopScale, TUNING.hitStopRecover);
-    }
-  }
-
   _boostPad() {
     const c = this.car;
     c.vx += Math.cos(c.heading) * TUNING.boostPadPower;
@@ -247,15 +226,6 @@ export default class GameScene extends Phaser.Scene {
     c.boost = Math.max(c.boost, 0.5);
     Audio.sfx('combo');
     pulseBloom(this.fx, 1.5);
-  }
-
-  _hitTrash(sprite) {
-    const c = this.car;
-    c.vx *= TUNING.trashSlow;
-    c.vy *= TUNING.trashSlow;
-    Audio.sfx('back');
-    this.sparks.emitParticleAt(c.x, c.y, 8);
-    this.track.collectTrash(sprite);
   }
 
   _onLand() {
@@ -315,11 +285,6 @@ export default class GameScene extends Phaser.Scene {
       for (const s of this._pendingPickups) this._collect(s);
       this._pendingPickups.length = 0;
     }
-    if (this._pendingTrash) {
-      this._hitTrash(this._pendingTrash);
-      this._pendingTrash = null;
-    }
-
     // Bounce off the track-edge walls (not while airborne — you fly over them).
     if (!this.car.airborne) this._wallBounce();
 

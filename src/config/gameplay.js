@@ -52,6 +52,16 @@ export const TUNING = {
   driftWindDecay: 2.2, // wind-down per second otherwise
   driftWindMax: 1.8, // pin full throttle ~1.5s and the wind-up tips you past the spin point
 
+  // ---- Drift = speed (the reward loop) -----------------------------------
+  // A clean slide PULLS the car forward and lifts the top-speed cap, so the way
+  // to go fast is to keep drifting. Deeper angle = more drive (up to a peak);
+  // over-rotate into a spin and you lose it.
+  driftThrust: 360, // forward accel (units/s^2) added while drifting on the gas
+  driftThrustPeak: 0.7, // drift angle (rad) where the forward pull maxes out
+  driftSpeedBonus: 0.3, // drifting lifts the top-speed cap by this fraction
+  driftLiftRise: 7.0, // how fast the cap lift comes in when you start sliding
+  driftLiftFall: 1.5, // how slowly it bleeds off after — so pace carries out of the drift
+
   // Drift-charge → boost (mini-turbo): hold the handbrake in a slide to charge,
   // release for a forward blast that decays back to normal.
   driftBoostChargeMax: 2.2, // seconds of sliding for a full charge
@@ -88,10 +98,7 @@ export const TUNING = {
   finishBonus: 400, // flat cash for finishing
   starBonus: 250, // extra cash per star earned
 
-  // ---- Obstacles & pads --------------------------------------------------
-  crashSpeedLoss: 0.55, // fraction of speed lost on obstacle hit
-  crashShakeMs: 220,
-  trashSlow: 0.7, // velocity multiplier when you clip a trash can (soft slow)
+  // ---- Pads & ramps ------------------------------------------------------
   boostPadPower: 135, // forward px/s kick from a booster pad
   rampMinSpeed: 120, // need at least this speed for a ramp to launch you
   rampLaunch: 95, // forward px/s added on launch so a fast jump carries across a gap

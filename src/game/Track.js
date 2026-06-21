@@ -31,9 +31,7 @@ export class Track {
     this.half = level.roadWidth / 2;
     this.zone = level.zoneData;
     this.pickups = []; // { sprite, halo, type, value, collected }
-    this.obstacles = [];
     this.pads = []; // boosters + ramps (persistent sensors)
-    this.trash = [];
     this._lastIdx = 0;
     this.maxProgress = 0;
 
@@ -44,7 +42,6 @@ export class Track {
     this.city = new CityDecor(this);
     this._drawStartFinish();
     this._placePickups();
-    this._placeObstacles();
     this._placeExtras();
   }
 
@@ -268,28 +265,6 @@ export class Track {
       g.generateTexture('pk_cash', 48, 48);
       g.destroy();
     }
-    if (!s.textures.exists('ob_cone')) {
-      const g = s.make.graphics({ x: 0, y: 0, add: false });
-      g.fillStyle(mixColor(COLORS.orange, COLORS.bgDeep, 0.35), 1);
-      g.fillTriangle(24, 6, 8, 42, 40, 42);
-      g.lineStyle(3, COLORS.orange, 1);
-      g.strokeTriangle(24, 6, 8, 42, 40, 42);
-      g.fillStyle(COLORS.white, 0.9);
-      g.fillRect(14, 26, 20, 4);
-      g.generateTexture('ob_cone', 48, 48);
-      g.destroy();
-    }
-    if (!s.textures.exists('ob_barrier')) {
-      const g = s.make.graphics({ x: 0, y: 0, add: false });
-      g.fillStyle(mixColor(COLORS.red, COLORS.bgDeep, 0.4), 1);
-      g.fillRoundedRect(4, 16, 56, 22, 5);
-      g.lineStyle(3, COLORS.red, 1);
-      g.strokeRoundedRect(4, 16, 56, 22, 5);
-      g.fillStyle(COLORS.white, 0.85);
-      for (let i = 0; i < 4; i++) g.fillRect(10 + i * 14, 20, 6, 14);
-      g.generateTexture('ob_barrier', 64, 54);
-      g.destroy();
-    }
     makeSoftCircle(s, 'soft_amber', 96, COLORS.amber);
     makeSoftCircle(s, 'soft_lime', 96, COLORS.lime);
 
@@ -324,19 +299,6 @@ export class Track {
       g.generateTexture('pad_ramp', 76, 64);
       g.destroy();
     }
-    if (!s.textures.exists('trash')) {
-      const g = s.make.graphics({ x: 0, y: 0, add: false });
-      g.fillStyle(0x33333d, 1);
-      g.fillRoundedRect(8, 12, 24, 28, 4);
-      g.lineStyle(2, 0x6a6a78, 1);
-      g.strokeRoundedRect(8, 12, 24, 28, 4);
-      g.fillStyle(0x4a4a55, 1);
-      g.fillRoundedRect(6, 6, 28, 8, 3);
-      g.fillStyle(0x24242b, 1);
-      for (let i = 0; i < 3; i++) g.fillRect(13 + i * 7, 16, 3, 20);
-      g.generateTexture('trash', 40, 46);
-      g.destroy();
-    }
   }
 
   _addPad(type, x, y, angle) {
@@ -352,17 +314,6 @@ export class Track {
     this.pads.push(sprite);
   }
 
-  _addTrash(x, y) {
-    const sprite = this.scene.matter.add.sprite(x, y, 'trash', null, {
-      isStatic: true,
-      isSensor: true,
-      shape: { type: 'circle', radius: 16 },
-      label: 'trash',
-    });
-    sprite.setDepth(6);
-    this.trash.push(sprite);
-  }
-
   _placeExtras() {
     const L = this.level;
     for (let i = 0; i < (L.boosters || 0); i++) {
@@ -375,19 +326,6 @@ export class Track {
       const pt = this.pointAtDistance(frac * this.total);
       this._addPad('ramp', pt.x, pt.y, this._tangentAngle(pt));
     }
-    for (let i = 0; i < (L.trashCans || 0); i++) {
-      const frac = 0.1 + (0.8 * (i + 0.5)) / Math.max(1, L.trashCans);
-      const pt = this.pointAtDistance(frac * this.total);
-      const off = rangeRand(this._rnd, -0.62, 0.62) * this.half;
-      this._addTrash(pt.x + pt.nx * off, pt.y + pt.ny * off);
-    }
-  }
-
-  collectTrash(sprite) {
-    if (!sprite || !sprite.body) return false;
-    this.scene.tweens.killTweensOf(sprite);
-    sprite.destroy();
-    return true;
   }
 
   _addPickup(type, x, y) {
@@ -412,23 +350,6 @@ export class Track {
       s.tweens.add({ targets: sprite, y: y - 6, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     }
     this.pickups.push(rec);
-  }
-
-  _addObstacle(x, y, kind) {
-    const s = this.scene;
-    const key = kind === 'barrier' ? 'ob_barrier' : 'ob_cone';
-    const shape =
-      kind === 'barrier'
-        ? { type: 'rectangle', width: 54, height: 20 }
-        : { type: 'circle', radius: 15 };
-    const sprite = s.matter.add.sprite(x, y, key, null, {
-      isStatic: true,
-      shape,
-      label: 'obstacle',
-      angle: rangeRand(this._rnd, -0.4, 0.4),
-    });
-    sprite.setDepth(6);
-    this.obstacles.push({ sprite });
   }
 
   _placePickups() {
@@ -457,17 +378,6 @@ export class Track {
         placed++;
       }
       i++;
-    }
-  }
-
-  _placeObstacles() {
-    const L = this.level;
-    for (let i = 0; i < L.obstacles; i++) {
-      const frac = 0.15 + (0.74 * (i + 0.5)) / L.obstacles + rangeRand(this._rnd, -0.02, 0.02);
-      const pt = this.pointAtDistance(Math.min(0.94, Math.max(0.1, frac)) * this.total);
-      const off = rangeRand(this._rnd, -0.55, 0.55) * this.half;
-      const kind = this._rnd() > 0.55 ? 'barrier' : 'cone';
-      this._addObstacle(pt.x + pt.nx * off, pt.y + pt.ny * off, kind);
     }
   }
 
