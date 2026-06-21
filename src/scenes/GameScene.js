@@ -608,6 +608,9 @@ export default class GameScene extends Phaser.Scene {
   _finish(result) {
     if (this._finishing) return; // never double-fire
     this._finishing = true;
+    // New personal best? Read the old best BEFORE recordLevel overwrites it.
+    const prevBest = Save.getLevelProgress(this.levelId).bestScore || 0;
+    result.newBest = result.score > prevBest && result.score > 0;
     Save.addCash(result.cash);
     Save.recordLevel(this.levelId, { cleared: result.cleared, stars: result.stars, score: result.score });
     // XP from the run (score, cash, stars, multiplier, clear) feeds the player level.

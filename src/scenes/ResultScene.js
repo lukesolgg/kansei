@@ -92,6 +92,14 @@ export default class ResultScene extends Phaser.Scene {
       this.add.text(W / 2 + 255, y, row[2] === COLORS.lime || row[1].startsWith('$') ? row[1] : row[1], { ...labelStyle(21, row[2]) }).setOrigin(1, 0);
     });
 
+    // New personal best
+    if (r.newBest) {
+      const nb = this.add.text(W / 2, 268, '★ NEW BEST!', { ...titleStyle(22), color: hex(COLORS.amber) })
+        .setOrigin(0.5).setShadow(0, 0, hex(COLORS.amber), 14, false, true).setScale(0);
+      this.tweens.add({ targets: nb, scale: 1, ease: 'Back.out', duration: 420, delay: 280 });
+      this.time.delayedCall(340, () => { try { Audio.sfx('perfect'); } catch (_) {} });
+    }
+
     // Total cash earned
     this.add.text(W / 2, 540, `+ $${fmt(r.cash)} EARNED`, { ...titleStyle(40), color: hex(COLORS.lime) }).setOrigin(0.5)
       .setShadow(0, 0, hex(COLORS.lime), 16, false, true);
