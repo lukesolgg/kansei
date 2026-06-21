@@ -92,6 +92,10 @@ export class Car {
     this.boost = 0; // current mini-turbo boost level (decays)
     this.boostFired = 0; // >0 on the frame a boost releases (for fx)
     this.driftLift = 0; // eased top-speed cap lift from drifting (carries pace out of a slide)
+    this.flickEnergy = 0; // built by pumping the steer mid-drift (Scandinavian flick)
+    this.flickFired = false; // true on the frame a fast reversal lands (for fx)
+    this._steerSign = 0; // last significant steer direction (for flick detection)
+    this._sinceFlick = 0; // seconds since the last steer reversal
     this._prevHandbrake = false;
   }
 
@@ -144,6 +148,22 @@ export class Car {
 
     const travelAng = Math.atan2(this.vy, this.vx);
     const drifting = handbrake && this.speed > TUNING.minDriftSpeed;
+
+    // --- Flick / pump: rapid LEFT<->RIGHT steer reversals MID-DRIFT stack energy
+    // that adds extra drive (the Scandinavian flick — pump a,d,a,d for more speed). ---
+    const steerSign = Math.abs(steer) > TUNING.flickSteerMin ? Math.sign(steer) : 0;
+    this._sinceFlick += dt;
+    this.flickFired = false;
+    if (steerSign !== 0 && this._steerSign !== 0 && steerSign !== this._steerSign) {
+      // a real reversal — reward it only if it came FAST and we're sliding
+      if (drifting && this._sinceFlick < TUNING.flickWindow) {
+        this.flickEnergy = Math.min(TUNING.flickEnergyMax, this.flickEnergy + TUNING.flickGain);
+        this.flickFired = true;
+      }
+      this._sinceFlick = 0;
+    }
+    if (steerSign !== 0) this._steerSign = steerSign;
+    this.flickEnergy = Math.max(0, this.flickEnergy - TUNING.flickDecay * dt);
 
     if (drifting) {
       // DRIFT: steer picks the SIDE the tail hangs; throttle sets the ANGLE.
@@ -255,6 +275,13 @@ export class Car {
       this.vx += cos * a * dt;
       this.vy += sin * a * dt;
     }
+    // Pumping the steer (flick energy) adds drive on top — works as long as you're
+    // on the handbrake + gas, even through the brief angle wobble of a flick.
+    if (drifting && !this.offTrack && throttle > 0.1 && this.flickEnergy > 0) {
+      const fa = TUNING.flickThrust * this.flickEnergy;
+      this.vx += cos * fa * dt;
+      this.vy += sin * fa * dt;
+    }
 
     // --- Drift-charge → boost (mini-turbo on release) ---
     if (handbrake && this.isDrifting && this.speed > 100) {
@@ -282,7 +309,8 @@ export class Car {
     this.driftLift += (targetLift - this.driftLift) * Math.min(1, liftRate * dt);
     this.speed = Math.hypot(this.vx, this.vy);
     const baseMax = this.forwardSpeed < -5 ? this.phys.maxSpeed * 0.4 : this.phys.maxSpeed;
-    const max = baseMax * (1 + this.boost * TUNING.driftBoostSpeedBonus + this.driftLift);
+    const max =
+      baseMax * (1 + this.boost * TUNING.driftBoostSpeedBonus + this.driftLift + this.flickEnergy * TUNING.flickSpeedBonus);
     if (this.speed > max) {
       const k = max / this.speed;
       this.vx *= k;

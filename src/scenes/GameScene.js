@@ -279,6 +279,8 @@ export default class GameScene extends Phaser.Scene {
     this.car.offTrack = this.car.airborne ? false : this.track.isOffTrack(this.car.x, this.car.y);
     this.car.update(dt, input, hasFuel);
     if (this.car.justLanded) this._onLand();
+    // Tire chirp puff each time a flick (steer pump) lands, for feedback.
+    if (this.car.flickFired) this.smoke.emitParticleAt(this.car.x, this.car.y, 3);
 
     // Process pickups touched during the just-finished physics step (safe now).
     if (this._pendingPickups.length) {

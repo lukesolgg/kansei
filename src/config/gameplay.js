@@ -62,6 +62,17 @@ export const TUNING = {
   driftLiftRise: 7.0, // how fast the cap lift comes in when you start sliding
   driftLiftFall: 1.5, // how slowly it bleeds off after — so pace carries out of the drift
 
+  // ---- Flick / pump (the Scandinavian flick) -----------------------------
+  // Rapid LEFT<->RIGHT steer reversals MID-DRIFT stack extra drive — pumping
+  // a,d,a,d round a corner builds speed beyond a steady slide.
+  flickSteerMin: 0.3, // steer must pass this magnitude (each side) to count as a real flick
+  flickWindow: 0.36, // consecutive reversals within this many seconds count as "fast"
+  flickGain: 0.3, // flick energy added per fast reversal
+  flickEnergyMax: 1.0, // cap (~3-4 quick flicks to max)
+  flickDecay: 0.9, // energy bled off per second once you stop pumping
+  flickThrust: 360, // extra forward accel (units/s^2) at full flick energy
+  flickSpeedBonus: 0.3, // flicking lifts the top-speed cap by up to this fraction
+
   // Drift-charge → boost (mini-turbo): hold the handbrake in a slide to charge,
   // release for a forward blast that decays back to normal.
   driftBoostChargeMax: 2.2, // seconds of sliding for a full charge
