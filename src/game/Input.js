@@ -37,6 +37,7 @@ export class InputController {
       leftArrow: Phaser.Input.Keyboard.KeyCodes.LEFT,
       rightArrow: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       space: Phaser.Input.Keyboard.KeyCodes.SPACE,
+      shift: Phaser.Input.Keyboard.KeyCodes.SHIFT, // alt handbrake (Ctrl would close the tab)
       esc: Phaser.Input.Keyboard.KeyCodes.ESC,
       p: Phaser.Input.Keyboard.KeyCodes.P,
     });
@@ -78,7 +79,7 @@ export class InputController {
 
     let thrTarget = k.up.isDown || k.upArrow.isDown || TOUCH.throttle ? 1 : 0;
     let brkTarget = k.down.isDown || k.downArrow.isDown || TOUCH.brake ? 1 : 0;
-    let hb = k.space.isDown || TOUCH.handbrake;
+    let hb = k.space.isDown || k.shift.isDown || TOUCH.handbrake;
 
     if (pad) {
       const ax = pad.axes.length ? pad.axes[0].getValue() : 0;

@@ -19,6 +19,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     this.backdrop = new Backdrop(this, { sunTop: COLORS.pink, sunBot: COLORS.purple, grid: COLORS.pink });
     scanlines(this);
     applyMenuFX(this.cameras.main);
+    this.input.keyboard.on('keydown-ESC', () => this._go('MenuScene'));
 
     this.add.text(640, 46, 'SELECT STAGE', { ...titleStyle(46), color: hex(COLORS.white) })
       .setOrigin(0.5).setLetterSpacing(8).setShadow(0, 0, hex(COLORS.pink), 18, false, true);

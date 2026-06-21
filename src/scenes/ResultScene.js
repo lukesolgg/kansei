@@ -26,6 +26,7 @@ export default class ResultScene extends Phaser.Scene {
     this.backdrop = new Backdrop(this, { sunTop: r.cleared ? COLORS.lime : COLORS.red, sunBot: zone.accent, grid: zone.accent });
     scanlines(this);
     applyMenuFX(this.cameras.main);
+    this.input.keyboard.on('keydown-ESC', () => this._go('LevelSelectScene'));
     Audio.resume();
     Audio.startMusic();
 

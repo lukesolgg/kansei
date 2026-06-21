@@ -71,6 +71,11 @@ export class Car {
     this.isSpinning = false;
     this.offTrack = false;
     this.crashCooldown = 0;
+    this.effDrift = 0;
+    this.driftCharge = 0; // builds while sliding with the handbrake
+    this.boost = 0; // current mini-turbo boost level (decays)
+    this.boostFired = 0; // >0 on the frame a boost releases (for fx)
+    this._prevHandbrake = false;
   }
 
   get x() {
@@ -114,7 +119,10 @@ export class Car {
     const dirSign = this.forwardSpeed < -12 ? -1 : 1;
     // Handbrake sharpens the yaw so the tail visibly kicks out.
     const hbBoost = handbrake ? TUNING.handbrakeSteerBoost : 1;
-    this.heading += steer * TUNING.steerRate * this.phys.turn * speedFactor * dirSign * hbBoost * dt;
+    // Extra steering authority while already sliding — swing wide around obstacles
+    // and pull the car right through a corner.
+    const driftSteer = 1 + Math.min(0.95, this.effDrift * TUNING.driftSteerGain);
+    this.heading += steer * TUNING.steerRate * this.phys.turn * speedFactor * dirSign * hbBoost * driftSteer * dt;
     this.heading = normAngle(this.heading);
     cos = Math.cos(this.heading);
     sin = Math.sin(this.heading);
@@ -127,7 +135,9 @@ export class Car {
       const travelAng = Math.atan2(this.vy, this.vx);
       const slip = normAngle(travelAng - this.heading);
       if (Math.abs(slip) < 1.4) {
-        let assist = TUNING.counterSteerAssist * (1 - Math.abs(steer));
+        // Assist scales with throttle: on the gas it catches the slide; lift off
+        // and it lets go so the car keeps rotating (clean ice-slide / 360 on exit).
+        let assist = TUNING.counterSteerAssist * (1 - Math.abs(steer)) * throttle;
         if (handbrake) assist *= TUNING.counterSteerHandbrakeMul;
         this.heading += Phaser.Math.Clamp(slip, -0.7, 0.7) * assist * dt;
         this.heading = normAngle(this.heading);
@@ -171,14 +181,35 @@ export class Car {
     let gripMul = 1;
     if (handbrake) gripMul *= TUNING.handbrakeGripMul;
     if (throttle > 0.15) gripMul *= TUNING.throttleGripMul;
+    else if (throttle < 0.1) gripMul *= TUNING.offThrottleGripMul; // lift-off = slidier
     const gripKill = TUNING.gripKill * this.phys.grip * gripMul;
     const keep = Math.max(0, 1 - gripKill * dt);
     this.vx = cos * this.forwardSpeed + latX * keep;
     this.vy = sin * this.forwardSpeed + latY * keep;
 
-    // --- Clamp top speed ---
+    // --- Drift-charge → boost (mini-turbo) ---
+    if (handbrake && this.isDrifting && this.speed > 100) {
+      this.driftCharge = Math.min(TUNING.driftBoostChargeMax, this.driftCharge + dt);
+    } else if (!handbrake) {
+      this.driftCharge = Math.max(0, this.driftCharge - dt * 1.5);
+    }
+    this.boostFired = 0;
+    if (this._prevHandbrake && !handbrake && this.driftCharge > TUNING.driftBoostMin) {
+      const amt = this.driftCharge;
+      const blast = TUNING.driftBoostPower * amt;
+      this.vx += cos * blast;
+      this.vy += sin * blast;
+      this.boost = Math.min(1, amt / TUNING.driftBoostChargeMax);
+      this.boostFired = this.boost;
+      this.driftCharge = 0;
+    }
+    this._prevHandbrake = handbrake;
+    if (this.boost > 0) this.boost = Math.max(0, this.boost - TUNING.driftBoostDecay * dt);
+
+    // --- Clamp top speed (boost temporarily lifts the cap) ---
     this.speed = Math.hypot(this.vx, this.vy);
-    const max = this.forwardSpeed < -5 ? this.phys.maxSpeed * 0.4 : this.phys.maxSpeed;
+    const baseMax = this.forwardSpeed < -5 ? this.phys.maxSpeed * 0.4 : this.phys.maxSpeed;
+    const max = baseMax * (1 + this.boost * TUNING.driftBoostSpeedBonus);
     if (this.speed > max) {
       const k = max / this.speed;
       this.vx *= k;

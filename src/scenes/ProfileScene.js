@@ -31,6 +31,7 @@ export default class ProfileScene extends Phaser.Scene {
     this.layer = this.add.container(0, 0);
     this.keyHandler = null;
     this.showList();
+    this.input.keyboard.on('keydown-ESC', () => this.showList());
 
     this.events.on('shutdown', () => this._removeKeyHandler());
   }

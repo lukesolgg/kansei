@@ -38,26 +38,29 @@ export function neonButton(scene, x, y, w, h, label, opts = {}, onClick) {
     .setOrigin(0.5);
   if (opts.letterSpacing) txt.setLetterSpacing(opts.letterSpacing);
 
-  c.add([g, txt]);
+  // Hit-testing via an interactive Zone CHILD (the reliable pattern used by the
+  // stage cards). container.setInteractive(Rectangle) mis-maps the hit area
+  // under FIT scaling, which left most of each button unclickable.
+  const zone = scene.add.zone(0, 0, w, h).setOrigin(0.5).setInteractive({ useHandCursor: true });
+  c.add([g, txt, zone]);
   c.setSize(w, h);
-  c.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
 
-  c.on('pointerover', () => {
+  zone.on('pointerover', () => {
     if (disabled) return;
     draw(true);
     txt.setColor(hex(color));
     scene.tweens.add({ targets: c, scale: 1.04, duration: 90 });
   });
-  c.on('pointerout', () => {
+  zone.on('pointerout', () => {
     draw(false);
     txt.setColor(hex(disabled ? COLORS.textMute : baseTextColor));
     scene.tweens.add({ targets: c, scale: 1, duration: 90 });
   });
-  c.on('pointerdown', () => {
+  zone.on('pointerdown', () => {
     if (disabled) return;
     scene.tweens.add({ targets: c, scale: 0.96, duration: 60 });
   });
-  c.on('pointerup', () => {
+  zone.on('pointerup', () => {
     if (disabled) return;
     Audio.resume();
     Audio.sfx(opts.sfx || 'click');

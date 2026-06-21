@@ -19,6 +19,7 @@ export default class GarageScene extends Phaser.Scene {
     this.backdrop = new Backdrop(this, { sunTop: COLORS.cyan, sunBot: COLORS.purple, grid: COLORS.cyan });
     scanlines(this);
     applyMenuFX(this.cameras.main);
+    this.input.keyboard.on('keydown-ESC', () => this._go('MenuScene'));
     this.viewIndex = CAR_ORDER.indexOf(Save.selectedCar);
     if (this.viewIndex < 0) this.viewIndex = 0;
 

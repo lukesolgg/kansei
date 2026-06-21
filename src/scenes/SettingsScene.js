@@ -21,6 +21,7 @@ export default class SettingsScene extends Phaser.Scene {
     scanlines(this);
     applyMenuFX(this.cameras.main);
     Audio.resume();
+    this.input.keyboard.on('keydown-ESC', () => this._back());
 
     this.add.text(640, 56, 'SETTINGS', { ...titleStyle(48), color: hex(COLORS.white) })
       .setOrigin(0.5).setLetterSpacing(10).setShadow(0, 0, hex(COLORS.cyan), 18, false, true);

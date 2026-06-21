@@ -92,17 +92,13 @@ const RAW = [
   // ---- Neon Docks --------------------------------------------------------
   {
     id: 'docks-1', zone: 'docks', name: 'Harbor Warmup', order: 0,
-    roadWidth: 360, fuelStart: 0.6, scoreBronze: 8000, scoreGold: 18000,
-    fuelCans: 4, cashTokens: 12, obstacles: 7,
-    // Technical switchback: straights linking 180° horseshoe hairpins.
+    roadWidth: 330, fuelStart: 0.78, scoreBronze: 12000, scoreGold: 26000,
+    fuelCans: 6, cashTokens: 16, obstacles: 10,
+    // Long technical switchback: six 180° horseshoes of varied tightness.
     segments: [
-      ['s', 600],
-      ['r', 180, 300],
-      ['s', 560],
-      ['l', 180, 300],
-      ['s', 560],
-      ['r', 180, 300],
-      ['s', 640],
+      ['s', 600], ['r', 180, 300], ['s', 560], ['l', 180, 260], ['s', 520],
+      ['r', 180, 300], ['s', 600], ['l', 180, 250], ['s', 520], ['r', 180, 290],
+      ['s', 560], ['l', 180, 270], ['s', 640],
     ],
   },
   {

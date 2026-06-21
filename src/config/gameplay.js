@@ -28,9 +28,25 @@ export const TUNING = {
   throttleRamp: 5.5, // keyboard throttle/brake ramp-in
   throttleRelease: 7.5, // throttle ramp-out when lifted
   // Counter-steer assist: gently aligns the nose to the travel direction so big
-  // slides are catchable rather than spinning out — the key to a premium feel.
-  counterSteerAssist: 2.1, // rad/s max corrective yaw (lower = slidier/icier)
-  counterSteerHandbrakeMul: 0.1, // handbrake nearly disables the assist → big slides
+  // slides are catchable. NOTE: in Car.js this assist now scales with THROTTLE —
+  // so lifting off lets the car keep rotating (clean ice-slide / 360 on exit),
+  // while staying on the gas keeps the drift catchable.
+  counterSteerAssist: 2.4, // rad/s max corrective yaw at full throttle
+  counterSteerHandbrakeMul: 0.12, // handbrake further loosens the assist
+
+  // Extra steering authority while already sliding — lets you swing the car wide
+  // mid-drift to scythe around obstacles.
+  driftSteerGain: 0.8,
+  // Lifting off the throttle drops grip so the car slides freely (360s on exit).
+  offThrottleGripMul: 0.5,
+
+  // Drift-charge → boost (mini-turbo): hold the handbrake in a slide to charge,
+  // release for a forward blast that decays back to normal.
+  driftBoostChargeMax: 2.2, // seconds of sliding for a full charge
+  driftBoostMin: 0.45, // minimum charge to fire any boost
+  driftBoostPower: 78, // forward px/s added per charge-second on release
+  driftBoostDecay: 1.1, // boost level bled off per second
+  driftBoostSpeedBonus: 0.42, // boost lifts the speed cap by up to this fraction
 
   // ---- Hit-stop / slow-mo (time-scale juice) ----------------------------
   hitStopScale: 0.05, // near-freeze on impact

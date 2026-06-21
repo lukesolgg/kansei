@@ -266,6 +266,9 @@ export default class GameScene extends Phaser.Scene {
     if (banked > 200) this._popup(this.car.x, this.car.y, `+${Math.round(banked)}`, COLORS.cyan);
     if (banked > 2500) this._bankSlowmo();
 
+    // Mini-turbo release
+    if (this.car.boostFired > 0) this._onBoost(this.car.boostFired);
+
     // FX
     this._effects(realDt);
 
@@ -279,14 +282,25 @@ export default class GameScene extends Phaser.Scene {
     if (this.track.isFinished(this.car.x, this.car.y)) {
       this._win();
     } else if (!hasFuel) {
-      if (this.car.speed < 26) this.strandTimer += realDt;
+      // Out of fuel: end once nearly stopped (icy coasting can run on), or after a
+      // hard cap so it never hangs — but slow enough to coast to a nearby fuel can.
+      this.fuelOutTime = (this.fuelOutTime || 0) + realDt;
+      if (this.car.speed < 60) this.strandTimer += realDt;
       else this.strandTimer = 0;
-      if (this.strandTimer > 1.1) this._lose();
+      if (this.strandTimer > 1.0 || this.fuelOutTime > 6) this._lose();
     } else {
       this.strandTimer = 0;
+      this.fuelOutTime = 0;
     }
 
     this._syncHud();
+  }
+
+  _onBoost(power) {
+    Audio.sfx('combo');
+    this.smoke.emitParticleAt(this.car.x, this.car.y, 8);
+    pulseBloom(this.fx, 1.5);
+    if (Save.settings.shake) this.cameras.main.shake(110, 0.005 * power);
   }
 
   _updateCamera() {
@@ -445,19 +459,26 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _finish(result) {
+    if (this._finishing) return; // never double-fire
+    this._finishing = true;
     Save.addCash(result.cash);
     Save.recordLevel(this.levelId, { cleared: result.cleared, stars: result.stars, score: result.score });
+    this.scene.stop('HUDScene');
     if (Save.settings.shake) {
       this.cameras.main.flash(result.cleared ? 220 : 120, result.cleared ? 60 : 255, result.cleared ? 255 : 60, 120);
     }
-    this.cameras.main.fadeOut(620, 0, 0, 0);
-    // Transition on a fixed timer, NOT the camerafadeoutcomplete event — that
-    // event can stall when a post-FX pipeline is on the camera and leave the
-    // player stuck on a black screen.
-    this.time.delayedCall(760, () => {
-      this.scene.stop('HUDScene');
+    this.cameras.main.fadeOut(480, 0, 0, 0);
+
+    // Go to results on a plain timer (never the fade-complete event, which can
+    // stall with post-FX). A window.setTimeout backstop guarantees it fires even
+    // if the scene clock is ever interfered with — guarded so it runs once.
+    const go = () => {
+      if (this._resultStarted || !this.scene) return;
+      this._resultStarted = true;
       this.scene.start('ResultScene', { levelId: this.levelId, result });
-    });
+    };
+    this.time.delayedCall(560, go);
+    window.setTimeout(() => { if (!this._resultStarted) go(); }, 1100);
   }
 
   _exitTo(scene) {
