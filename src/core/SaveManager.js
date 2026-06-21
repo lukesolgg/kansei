@@ -1,7 +1,7 @@
 // Local profile + persistence layer. Everything lives in localStorage — no server.
 // A "login" is just selecting a profile and (optionally) entering its 4-digit PIN.
 
-import { CARS, STARTER_CAR } from '../config/cars.js';
+import { CARS, STARTER_CAR, clampSchemeIndex } from '../config/cars.js';
 import { UPGRADES } from '../config/upgrades.js';
 
 const STORAGE_KEY = 'kansei.save.v1';
@@ -36,6 +36,9 @@ function blankProfile(name, pin) {
     ownedCars: { [STARTER_CAR]: true },
     // Per-car upgrade levels: { ae86: { fuel:0, engine:0, grip:0, brakes:0 } }
     carUpgrades: { [STARTER_CAR]: freshUpgrades() },
+    // Per-car chosen colour-scheme index: { ae86: 0, s15: 3, ... }. Missing
+    // entries fall back to the car's stock scheme (see getCarColor).
+    carColors: {},
     // Per-level progress: { 'docks-1': { cleared:true, stars:2, bestScore:12345 } }
     levels: {},
     settings: { ...DEFAULT_SETTINGS },
@@ -163,6 +166,23 @@ class SaveManager {
 
   get selectedCar() {
     return this.current ? this.current.selectedCar : STARTER_CAR;
+  }
+
+  // ---- Colour schemes -----------------------------------------------------
+  // The chosen two-tone scheme index for a car. Falls back to the car's stock
+  // scheme (its own hand-tuned livery) when the player hasn't repainted it.
+  getCarColor(carId) {
+    const stock = clampSchemeIndex(CARS[carId]?.stockScheme ?? 0);
+    if (!this.current || !this.current.carColors) return stock;
+    const stored = this.current.carColors[carId];
+    return stored == null ? stock : clampSchemeIndex(stored);
+  }
+
+  setCarColor(carId, index) {
+    if (!this.current) return;
+    if (!this.current.carColors) this.current.carColors = {};
+    this.current.carColors[carId] = clampSchemeIndex(index);
+    this.save();
   }
 
   // ---- Upgrades -----------------------------------------------------------

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { Save } from '../core/SaveManager.js';
 import { Audio } from '../core/audio.js';
-import { CARS, CAR_ORDER } from '../config/cars.js';
+import { CARS, CAR_ORDER, COLOR_SCHEMES } from '../config/cars.js';
 import { UPGRADES, UPGRADE_ORDER, maxLevel } from '../config/upgrades.js';
 import { COLORS, hex, titleStyle, labelStyle, mixColor } from '../config/theme.js';
 import { makeCarTexture, addGlow, drawNeonRoundRect } from '../core/neon.js';
@@ -46,8 +46,9 @@ export default class GarageScene extends Phaser.Scene {
     const cx = 380;
     const cy = 300;
     this.dyn.add(neonPanel(this, cx - 320, cy - 170, 640, 360, car.color, { fillAlpha: 0.35 }));
-    const key = makeCarTexture(this, car);
-    const sprite = this.add.image(cx, cy - 30, key).setScale(3.8).setAngle(-18);
+    const schemeIdx = Save.getCarColor(car.id);
+    const key = makeCarTexture(this, car, schemeIdx);
+    const sprite = this.add.image(cx, cy - 30, key).setScale(3.2).setAngle(-18);
     addGlow(sprite, car.color, 6, 0);
     this.tweens.add({ targets: sprite, angle: -12, duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.dyn.add(sprite);
@@ -152,6 +153,68 @@ export default class GarageScene extends Phaser.Scene {
         this.build();
       }));
     }
+
+    // ---- Colour-scheme picker (left column, under the action button) ----
+    this._colorPicker(car, owned, schemeIdx, 380, 640);
+  }
+
+  // Row of 8 two-tone colour swatches for the currently-shown car. Clicking one
+  // repaints the showcase sprite and persists the choice via SaveManager.
+  _colorPicker(car, owned, current, cx, y) {
+    const n = COLOR_SCHEMES.length;
+    const sw = 32; // swatch size
+    const gap = 9;
+    const totalW = n * sw + (n - 1) * gap;
+    const x0 = cx - totalW / 2;
+
+    this.dyn.add(this.add.text(cx, y - 30, 'COLOUR', labelStyle(16, COLORS.cyan)).setOrigin(0.5).setLetterSpacing(4));
+
+    COLOR_SCHEMES.forEach((scheme, i) => {
+      const sx = x0 + i * (sw + gap) + sw / 2;
+      const selected = i === current;
+      // Stock swatch shows the car's own livery colours; others show the scheme.
+      const prim = scheme.primary == null ? (car.livery?.body ?? car.color) : scheme.primary;
+      const sec = scheme.secondary == null ? (car.livery?.accent ?? car.color) : scheme.secondary;
+
+      const g = this.add.graphics();
+      // Primary fills the swatch; a secondary corner wedge shows the two-tone.
+      g.fillStyle(prim, 1);
+      g.fillRoundedRect(sx - sw / 2, y - sw / 2, sw, sw, 6);
+      g.fillStyle(sec, 1);
+      g.fillTriangle(
+        sx + sw / 2, y - sw / 2,
+        sx + sw / 2, y + sw / 2,
+        sx - sw / 2, y + sw / 2,
+      );
+      // Border: bright + glowing when selected, dim otherwise.
+      const bcol = selected ? COLORS.white : mixColor(prim, COLORS.bgDeep, 0.5);
+      if (selected) {
+        g.lineStyle(5, COLORS.cyan, 0.4);
+        g.strokeRoundedRect(sx - sw / 2, y - sw / 2, sw, sw, 6);
+      }
+      g.lineStyle(2, bcol, 1);
+      g.strokeRoundedRect(sx - sw / 2, y - sw / 2, sw, sw, 6);
+      this.dyn.add(g);
+
+      // Hover ring drawn around the swatch (graphics use absolute coords, so we
+      // toggle a separate highlight rather than scaling the graphics object).
+      const hover = this.add.graphics();
+      hover.lineStyle(2, COLORS.cyan, 1);
+      hover.strokeRoundedRect(sx - sw / 2 - 3, y - sw / 2 - 3, sw + 6, sw + 6, 8);
+      hover.setVisible(false);
+      this.dyn.add(hover);
+
+      const zone = this.add.zone(sx, y, sw + 8, sw + 8).setInteractive({ useHandCursor: true });
+      zone.on('pointerover', () => hover.setVisible(true));
+      zone.on('pointerout', () => hover.setVisible(false));
+      zone.on('pointerup', () => {
+        if (i === Save.getCarColor(car.id)) return;
+        Save.setCarColor(car.id, i);
+        Audio.sfx(owned ? 'select' : 'click');
+        this.build(); // regenerates the showcase texture under the new key
+      });
+      this.dyn.add(zone);
+    });
   }
 
   _cycle(dir) {

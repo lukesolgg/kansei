@@ -3,6 +3,8 @@
 
 import Phaser from 'phaser';
 import { COLORS, mixColor } from '../config/theme.js';
+import { COLOR_SCHEMES, clampSchemeIndex } from '../config/cars.js';
+import { Save } from './SaveManager.js';
 
 // Apply a WebGL glow FX to a sprite/text/image. No-op on the Canvas renderer.
 export function addGlow(obj, color, outer = 4, inner = 0, quality = 0.3) {
@@ -74,24 +76,58 @@ function snap(v, step) {
 
 // Resolve a car's livery into concrete colours with sensible fallbacks so the
 // renderer never has to branch on missing fields.
-function resolveLivery(car) {
+//
+// `schemeIndex` selects one of COLOR_SCHEMES. Index 0 ("Stock", or any scheme
+// with a null primary) keeps the car's own hand-tuned livery untouched. Any
+// other scheme repaints the body in the scheme's primary and the accents
+// (roof/stripe, lower flanks, hood scoop, rear strip) in its secondary, while
+// the AE86's 'panda' style is preserved so a repaint still reads as a panda.
+function resolveLivery(car, schemeIndex = 0) {
   const lv = car.livery || {};
-  const accent = car.color ?? COLORS.cyan;
-  const body = lv.body ?? mixColor(accent, COLORS.white, 0.15);
-  return {
+  const carAccent = car.color ?? COLORS.cyan;
+  const baseBody = lv.body ?? mixColor(carAccent, COLORS.white, 0.15);
+  const base = {
     style: lv.style || 'solid',
-    body,
-    roof: lv.roof ?? body,
-    accent: lv.accent ?? accent,
+    body: baseBody,
+    roof: lv.roof ?? baseBody,
+    accent: lv.accent ?? carAccent,
     glass: lv.glass ?? mixColor(COLORS.cyan, COLORS.bgDeep, 0.45),
     trim: lv.trim ?? COLORS.bgDeep,
+  };
+
+  const scheme = COLOR_SCHEMES[clampSchemeIndex(schemeIndex)];
+  if (!scheme || scheme.primary == null) return base; // stock livery
+
+  const primary = scheme.primary;
+  const secondary = scheme.secondary;
+  return {
+    ...base,
+    body: primary,
+    // Keep the panda two-tone (white roof) but let solid cars take a roof in the
+    // secondary so the scheme reads as genuinely two-tone from above.
+    roof: base.style === 'panda' ? COLORS.white : mixColor(primary, secondary, 0.5),
+    accent: secondary,
+    // Glass shifts slightly toward the primary so tinted bodies don't clash.
+    glass: mixColor(base.glass, primary, 0.18),
   };
 }
 
 // Generate a chunky 8-bit top-down car texture for a given car definition.
-// Keeps the texture key 'car_' + car.id and the +X forward convention.
-export function makeCarTexture(scene, car) {
-  const key = 'car_' + car.id;
+// Uses the +X forward convention. The texture key encodes the colour scheme
+// ('car_<id>_s<index>') so repainting a car in the Garage produces a distinct,
+// cached texture instead of returning a stale one.
+//
+// `schemeIndex` is OPTIONAL and backward-compatible: when omitted it falls back
+// to the player's saved per-car choice (Save.getCarColor), or the car's stock
+// scheme when there's no profile. So every existing 2-arg call site keeps
+// working AND automatically reflects the chosen colour everywhere a car is drawn.
+export function makeCarTexture(scene, car, schemeIndex) {
+  const scheme =
+    schemeIndex == null
+      ? (Save && typeof Save.getCarColor === 'function' ? Save.getCarColor(car.id) : (car.stockScheme ?? 0))
+      : schemeIndex;
+  const sIdx = clampSchemeIndex(scheme);
+  const key = 'car_' + car.id + '_s' + sIdx;
   if (scene.textures.exists(key)) return key;
 
   const L = car.gfxLength || 96;
@@ -109,7 +145,7 @@ export function makeCarTexture(scene, car) {
   const hl = snap(L / 2, px);
   const hw = snap(W / 2, px);
 
-  const lv = resolveLivery(car);
+  const lv = resolveLivery(car, sIdx);
   const isPanda = lv.style === 'panda';
 
   // Derived shades for the three-band body shading.
@@ -133,6 +169,34 @@ export function makeCarTexture(scene, car) {
     g.fillStyle(color, alpha);
     g.fillRect(cx + Math.min(ax, bx), cy + Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
   };
+
+  // ---- 0. Wheels (drawn UNDER the body so the body overlaps them, leaving
+  // only the tyre poking out past the flanks for a planted, detailed look) ----
+  const tyre = mixColor(COLORS.bgDeep, 0x000000, 0.2); // near-black rubber
+  const tyreLit = mixColor(tyre, COLORS.white, 0.16);
+  const rim = mixColor(accent, COLORS.white, 0.35);
+  const wheelLen = snap(L * 0.2, px); // tyre footprint along the body
+  const wheelHalf = wheelLen / 2;
+  const wheelThick = snap(W * 0.16, px); // how far the tyre pokes out past the flank
+  const axleFront = snap(hl * 0.62, px);
+  const axleRear = -snap(hl * 0.6, px);
+  const drawWheel = (ax, side) => {
+    const yOuter = side * (hw + wheelThick);
+    const yInner = side * snap(hw * 0.74, px);
+    const y0 = Math.min(yInner, yOuter);
+    const y1 = Math.max(yInner, yOuter);
+    g.fillStyle(tyre, 1);
+    g.fillRect(cx + ax - wheelHalf, cy + y0, wheelLen, y1 - y0);
+    // Lit tread cap on the outer edge + a small hub highlight.
+    g.fillStyle(tyreLit, 1);
+    g.fillRect(cx + ax - wheelHalf, cy + (side > 0 ? y1 - px : y0), wheelLen, px);
+    g.fillStyle(rim, 1);
+    g.fillRect(cx + ax - px, cy + (side > 0 ? y0 + px : y1 - px * 2), px * 2, px);
+  };
+  drawWheel(axleFront, -1);
+  drawWheel(axleFront, 1);
+  drawWheel(axleRear, -1);
+  drawWheel(axleRear, 1);
 
   // ---- 1. Body silhouette ----
   // We paint the body as a stack of vertical pixel columns whose half-width
@@ -190,6 +254,29 @@ export function makeCarTexture(scene, car) {
       g.fillStyle(blk, 1);
       g.fillRect(xa, cy - w, px, w - bandTop); // upper flank black
       g.fillRect(xa, cy + bandTop, px, w - bandTop); // lower flank black
+    }
+  }
+
+  // ---- 2b. Two-tone racing stripe (solid liveries only) ----
+  // A pair of secondary-colour stripes run nose-to-tail down the bonnet/roof
+  // crown, so a repaint reads as a genuine two-tone from the top-down camera.
+  // Panda cars get their black flanks instead and skip this.
+  if (!isPanda) {
+    const stripeCol = accent;
+    const stripeLit = mixColor(accent, COLORS.white, 0.25);
+    const stripeHalf = snap(hw * 0.16, px);
+    const gap = snap(hw * 0.06, px);
+    for (let x = -hl + px * 2; x < hl - px * 2; x += px) {
+      const w = halfWidthAt(x + px / 2);
+      if (w <= stripeHalf + gap) continue;
+      const xa = cx + x;
+      // twin stripes either side of the centre line
+      g.fillStyle(stripeCol, 1);
+      g.fillRect(xa, cy - stripeHalf - gap, px, stripeHalf);
+      g.fillRect(xa, cy + gap, px, stripeHalf);
+      g.fillStyle(stripeLit, 1);
+      g.fillRect(xa, cy - stripeHalf - gap, px, px); // top highlight
+      g.fillRect(xa, cy + gap, px, px);
     }
   }
 

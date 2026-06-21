@@ -20,8 +20,16 @@ import { COLORS, mixColor } from '../config/theme.js';
 import { makeSoftCircle } from '../core/neon.js';
 import { mulberry32, rangeRand, intRand } from '../core/rng.js';
 
-// Neon accent palette for building outlines / signage — Japanese-night energy.
-const NEON = [COLORS.pink, COLORS.cyan, COLORS.purple, COLORS.amber, COLORS.red, COLORS.orange];
+// Muted concrete/brick/taupe facades for a retro-pixel Japanese night street.
+const FACADE = [0x4a4e57, 0x55473f, 0x4f5a5e, 0x5c5048, 0x474551, 0x59504a, 0x445055, 0x5a4d52];
+// Window light + rooftop tones.
+const WIN_WARM = 0xffce86;
+const WIN_COOL = 0xbcd2ee;
+const WIN_DARK = 0x2a2c33;
+const ROOF = 0x3d4047;
+const ROOF_AC = 0x6a6e77;
+// Muted shop-sign accents (izakaya warmth, not arcade neon).
+const SIGN = [0xd9544e, 0xe0a93a, 0x4a9ec0, 0xc66a9a, 0xe6e0d2];
 
 function unit(dx, dy) {
   const l = Math.hypot(dx, dy) || 1;
@@ -48,6 +56,7 @@ export class CityDecor {
 
     this._drawGroundDetail();
     this._buildBuildings();
+    this._drawLampPosts();
   }
 
   _g(depth) {
@@ -99,7 +108,7 @@ export class CityDecor {
         outer.push({ x: p[i].x + n.x * side * o1, y: p[i].y + n.y * side * o1 });
       }
       const ribbon = inner.concat(outer.slice().reverse());
-      sheen.fillStyle(mixColor(this.zone.edge, COLORS.bgDeep, 0.62), 0.22);
+      sheen.fillStyle(mixColor(COLORS.asphaltDark, COLORS.bgDeep, 0.3), 0.28);
       sheen.fillPoints(ribbon, true, true);
     }
   }
@@ -181,97 +190,85 @@ export class CityDecor {
       pt(la0, ln1),
     ];
 
-    // Colour identity for this building.
-    const neon = NEON[intRand(r, 0, NEON.length - 1)];
-    // Dark face: deep blue/purple base tinted slightly toward its neon accent.
-    const faceBase = mixColor(COLORS.bgDeep, mixColor(COLORS.purple, neon, 0.5), 0.18);
-    const faceDark = mixColor(faceBase, COLORS.bgDeep, 0.35);
+    // Muted facade identity (concrete / brick / taupe).
+    const tone = FACADE[intRand(r, 0, FACADE.length - 1)];
+    const faceBase = tone;
+    const faceLight = mixColor(tone, COLORS.white, 0.1); // upper, catching street light
+    const faceDark = mixColor(tone, COLORS.bgDeep, 0.42); // shaded ground floor (road side)
+    const outline = mixColor(tone, COLORS.bgDeep, 0.6); // hard pixel outline
+    const sign = SIGN[intRand(r, 0, SIGN.length - 1)];
 
     // Pseudo-3D "height": how far the roof is offset further away from road.
-    const rise = rangeRand(r, 14, 40);
+    const rise = rangeRand(r, 16, 46);
 
     // ---- (a) Drop shadow toward the road (ground plane, darkest). ----
     const shadowDepth = rangeRand(r, 16, 30);
-    gShadow.fillStyle(COLORS.bgDeep, 0.55);
-    gShadow.fillPoints(
-      rect(-halfA - 4, -halfN - shadowDepth, halfA + 4, -halfN + 2),
-      true,
-      true,
-    );
+    gShadow.fillStyle(COLORS.bgDeep, 0.5);
+    gShadow.fillPoints(rect(-halfA - 4, -halfN - shadowDepth, halfA + 4, -halfN + 2), true, true);
 
-    // ---- Building face (the wall that the car visually bounces off). ----
-    // Vertical face gradient feel: split into a darker lower band + lit upper.
-    gFace.fillStyle(faceDark, 1);
-    gFace.fillPoints(rect(-halfA, -halfN, halfA, halfN), true, true);
+    // ---- Building face: solid muted wall, lighter up top, darker shopfront base. ----
     gFace.fillStyle(faceBase, 1);
-    gFace.fillPoints(rect(-halfA, -halfN + o.depth * 0.32, halfA, halfN), true, true);
+    gFace.fillPoints(rect(-halfA, -halfN, halfA, halfN), true, true);
+    gFace.fillStyle(faceLight, 0.5);
+    gFace.fillPoints(rect(-halfA, halfN - o.depth * 0.5, halfA, halfN), true, true);
+    gFace.fillStyle(faceDark, 1);
+    gFace.fillPoints(rect(-halfA, -halfN, halfA, -halfN + o.depth * 0.2), true, true);
 
-    // Neon outline (soft fat under bright thin — matches neon.js glow trick).
-    const outlineRing = [
-      pt(-halfA, -halfN),
-      pt(halfA, -halfN),
-      pt(halfA, halfN),
-      pt(-halfA, halfN),
-    ];
-    gFace.lineStyle(7, neon, 0.1);
-    gFace.strokePoints(outlineRing, true, true);
-    gFace.lineStyle(3.5, neon, 0.28);
-    gFace.strokePoints(outlineRing, true, true);
-    gFace.lineStyle(1.5, neon, 0.9);
+    // Hard pixel outline (no neon glow).
+    const outlineRing = [pt(-halfA, -halfN), pt(halfA, -halfN), pt(halfA, halfN), pt(-halfA, halfN)];
+    gFace.lineStyle(2, outline, 1);
     gFace.strokePoints(outlineRing, true, true);
 
-    // ---- Lit window grid. Small bright squares, deterministically lit/dark.
-    this._drawWindows(gFace, pt, halfA, halfN, neon, r);
+    // ---- Lit window grid (warm/cool/dark apartment windows). ----
+    this._drawWindows(gFace, pt, halfA, halfN, o.depth, r);
 
-    // ---- (b) Lighter offset roof rect pushed away from the road (the top). ----
-    const roofCol = mixColor(faceBase, COLORS.white, 0.1);
-    gTop.fillStyle(roofCol, 1);
-    gTop.fillPoints(
-      rect(-halfA + 2, halfN, halfA - 2, halfN + rise),
+    // ---- (b) Concrete roof pushed away from the road, with rooftop clutter. ----
+    gTop.fillStyle(ROOF, 1);
+    gTop.fillPoints(rect(-halfA + 2, halfN, halfA - 2, halfN + rise), true, true);
+    gTop.lineStyle(2, mixColor(ROOF, COLORS.bgDeep, 0.5), 1);
+    gTop.strokePoints(
+      [pt(-halfA + 2, halfN), pt(halfA - 2, halfN), pt(halfA - 2, halfN + rise), pt(-halfA + 2, halfN + rise)],
       true,
       true,
     );
-    // Roof neon lip facing away from the road.
-    gTop.lineStyle(2, neon, 0.8);
-    const lip = [pt(-halfA + 2, halfN + rise), pt(halfA - 2, halfN + rise)];
-    gTop.beginPath();
-    gTop.moveTo(lip[0].x, lip[0].y);
-    gTop.lineTo(lip[1].x, lip[1].y);
-    gTop.strokePath();
+    this._drawRoofClutter(gTop, pt, halfA, halfN, rise, r);
 
-    // ---- Rooftop signage. ----
-    this._drawSignage(gTop, pt, halfA, halfN, rise, neon, r, o.isLandmark);
+    // ---- Occasional muted shop sign / billboard. ----
+    this._drawSignage(gTop, pt, halfA, halfN, rise, sign, r, o.isLandmark);
   }
 
-  // Grid of lit/dark window squares across the face.
-  _drawWindows(gFace, pt, halfA, halfN, neon, r) {
-    const cell = 13; // pixel-chunky window pitch
-    const cols = Math.max(2, Math.floor((halfA * 2 - 16) / cell));
-    const rows = Math.max(2, Math.floor((halfN * 2 - 16) / cell));
-    const win = 8; // lit square size
+  // Grid of warm/cool/dark apartment windows on the upper floors (above the
+  // shopfront band nearest the road).
+  _drawWindows(gFace, pt, halfA, halfN, depth, r) {
+    const cell = 14; // pixel-chunky window pitch
+    const win = 8;
     const startA = -halfA + 10;
-    const startN = -halfN + 10;
-
-    // Warm/cool window palette; mostly the building's neon, some hot windows.
-    const litCool = mixColor(neon, COLORS.white, 0.55);
-    const litWarm = mixColor(COLORS.amber, COLORS.white, 0.3);
-    const dark = mixColor(COLORS.bgDeep, neon, 0.12);
-
-    for (let cI = 0; cI < cols; cI++) {
-      for (let rI = 0; rI < rows; rI++) {
-        const la = startA + cI * cell;
-        const ln = startN + rI * cell;
+    const endA = halfA - 10;
+    const startN = -halfN + depth * 0.28; // leave the ground floor for the shopfront
+    const endN = halfN - 8;
+    for (let la = startA; la <= endA - win; la += cell) {
+      for (let ln = startN; ln <= endN - win; ln += cell) {
         const roll = r();
-        if (roll < 0.42) {
-          // dark / off window
-          gFace.fillStyle(dark, 0.85);
-          this._fillWinSquare(gFace, pt, la, ln, win);
-        } else {
-          const warm = r() < 0.3;
-          gFace.fillStyle(warm ? litWarm : litCool, warm ? 0.95 : 0.85);
-          this._fillWinSquare(gFace, pt, la, ln, win);
-        }
+        if (roll < 0.4) gFace.fillStyle(WIN_DARK, 0.9);
+        else if (roll < 0.72) gFace.fillStyle(WIN_WARM, 0.92);
+        else gFace.fillStyle(WIN_COOL, 0.82);
+        this._fillWinSquare(gFace, pt, la, ln, win);
       }
+    }
+  }
+
+  // 1-2 air-con boxes / vents on the concrete roof.
+  _drawRoofClutter(gTop, pt, halfA, halfN, rise, r) {
+    const n = intRand(r, 1, 2);
+    for (let i = 0; i < n; i++) {
+      const bw = rangeRand(r, 10, 18);
+      const off = rangeRand(r, -halfA * 0.5, halfA * 0.5);
+      const ln0 = halfN + rangeRand(r, 4, Math.max(6, rise - 9));
+      const box = [pt(off - bw / 2, ln0), pt(off + bw / 2, ln0), pt(off + bw / 2, ln0 + 8), pt(off - bw / 2, ln0 + 8)];
+      gTop.fillStyle(ROOF_AC, 1);
+      gTop.fillPoints(box, true, true);
+      gTop.lineStyle(1, mixColor(ROOF_AC, COLORS.bgDeep, 0.5), 1);
+      gTop.strokePoints(box, true, true);
     }
   }
 
@@ -283,144 +280,113 @@ export class CityDecor {
     );
   }
 
-  // Rooftop signage: vertical neon bars (kanji-suggesting), billboards, glowing
-  // logos. Landmarks get a big bright billboard with an additive glow halo.
-  _drawSignage(gTop, pt, halfA, halfN, rise, neon, r, isLandmark) {
-    const signNeon = NEON[intRand(r, 0, NEON.length - 1)];
+  // Rooftop signage: muted lit signboards (izakaya warmth, not arcade neon).
+  // Landmarks get a flat lit billboard; others an occasional vertical signboard
+  // or small lit logo box. The colour `sign` comes from the SIGN palette.
+  _drawSignage(gTop, pt, halfA, halfN, rise, sign, r, isLandmark) {
     const topN = halfN + rise;
+    const box = (la0, ln0, la1, ln1) => [pt(la0, ln0), pt(la1, ln0), pt(la1, ln1), pt(la0, ln1)];
 
     if (isLandmark) {
-      // Big billboard panel spanning much of the frontage, with a glow halo.
       const bw = halfA * 1.5;
-      const bh = rangeRand(r, 40, 60);
+      const bh = rangeRand(r, 36, 54);
       const la0 = -bw / 2;
       const la1 = bw / 2;
       const ln0 = topN + 6;
       const ln1 = topN + 6 + bh;
-      const panel = mixColor(COLORS.bgDeep, signNeon, 0.35);
-      gTop.fillStyle(panel, 1);
-      gTop.fillPoints(
-        [pt(la0, ln0), pt(la1, ln0), pt(la1, ln1), pt(la0, ln1)],
-        true,
-        true,
-      );
-      // Bright neon frame.
-      const frame = [pt(la0, ln0), pt(la1, ln0), pt(la1, ln1), pt(la0, ln1)];
-      gTop.lineStyle(6, signNeon, 0.16);
-      gTop.strokePoints(frame, true, true);
-      gTop.lineStyle(2.5, signNeon, 1);
-      gTop.strokePoints(frame, true, true);
-      // Faux kanji/logo block bars inside the billboard.
+      gTop.fillStyle(mixColor(sign, COLORS.bgDeep, 0.42), 1);
+      gTop.fillPoints(box(la0, ln0, la1, ln1), true, true);
+      gTop.lineStyle(2, mixColor(sign, COLORS.white, 0.2), 1);
+      gTop.strokePoints(box(la0, ln0, la1, ln1), true, true);
       const bars = intRand(r, 2, 4);
       const seg = bw / (bars + 1);
+      gTop.fillStyle(mixColor(sign, COLORS.white, 0.5), 0.95);
       for (let i = 1; i <= bars; i++) {
         const la = la0 + seg * i;
-        gTop.fillStyle(mixColor(signNeon, COLORS.white, 0.6), 0.95);
-        gTop.fillPoints(
-          [
-            pt(la - 4, ln0 + 8),
-            pt(la + 4, ln0 + 8),
-            pt(la + 4, ln1 - 8),
-            pt(la - 4, ln1 - 8),
-          ],
-          true,
-          true,
-        );
+        gTop.fillPoints(box(la - 4, ln0 + 7, la + 4, ln1 - 7), true, true);
       }
-      // Additive glow halo centred on the billboard.
-      const c = pt(0, (ln0 + ln1) / 2);
-      const key = 'city_glow_' + (signNeon & 0xffffff).toString(16);
-      if (!this.scene.textures.exists(key)) {
-        makeSoftCircle(this.scene, key, 256, signNeon);
-        this._haloKeys.push(key);
-      }
-      const halo = this.scene.add
-        .image(c.x, c.y, key)
-        .setDepth(-7)
-        .setBlendMode(Phaser.BlendModes.ADD)
-        .setAlpha(0.35)
-        .setScale((bw / 256) * 1.6);
-      this.images.push(halo);
       return;
     }
 
-    // Otherwise: occasional vertical kanji-suggesting neon bar tower or a small
-    // billboard / logo. ~60% of buildings get something.
     const roll = r();
-    if (roll < 0.4) return; // bare roof — keeps it from getting cluttered
+    if (roll < 0.45) return; // bare roof — avoid clutter
 
-    if (roll < 0.72) {
-      // Vertical neon sign: a tall narrow bar with stacked kanji-like ticks.
-      const sw = rangeRand(r, 7, 12);
-      const sh = rangeRand(r, 34, 64);
+    if (roll < 0.74) {
+      // Vertical signboard with stacked kanji-suggesting ticks.
+      const sw = rangeRand(r, 8, 13);
+      const sh = rangeRand(r, 30, 58);
       const off = rangeRand(r, -halfA * 0.5, halfA * 0.5);
       const la0 = off - sw / 2;
       const la1 = off + sw / 2;
       const ln0 = topN + 4;
       const ln1 = topN + 4 + sh;
-      gTop.fillStyle(mixColor(COLORS.bgDeep, signNeon, 0.4), 1);
-      gTop.fillPoints(
-        [pt(la0, ln0), pt(la1, ln0), pt(la1, ln1), pt(la0, ln1)],
-        true,
-        true,
-      );
-      gTop.lineStyle(4, signNeon, 0.18);
-      gTop.strokePoints(
-        [pt(la0, ln0), pt(la1, ln0), pt(la1, ln1), pt(la0, ln1)],
-        true,
-        true,
-      );
-      gTop.lineStyle(1.5, signNeon, 1);
-      gTop.strokePoints(
-        [pt(la0, ln0), pt(la1, ln0), pt(la1, ln1), pt(la0, ln1)],
-        true,
-        true,
-      );
-      // Stacked kanji-suggesting ticks down the bar.
+      gTop.fillStyle(mixColor(sign, COLORS.bgDeep, 0.4), 1);
+      gTop.fillPoints(box(la0, ln0, la1, ln1), true, true);
+      gTop.lineStyle(1.5, mixColor(sign, COLORS.white, 0.22), 1);
+      gTop.strokePoints(box(la0, ln0, la1, ln1), true, true);
       const ticks = intRand(r, 3, 5);
       const tgap = sh / (ticks + 1);
-      gTop.fillStyle(mixColor(signNeon, COLORS.white, 0.7), 0.95);
+      gTop.fillStyle(mixColor(sign, COLORS.white, 0.55), 0.95);
       for (let i = 1; i <= ticks; i++) {
         const ln = ln0 + tgap * i;
-        gTop.fillPoints(
-          [
-            pt(la0 + 1.5, ln - 1.6),
-            pt(la1 - 1.5, ln - 1.6),
-            pt(la1 - 1.5, ln + 1.6),
-            pt(la0 + 1.5, ln + 1.6),
-          ],
-          true,
-          true,
-        );
+        gTop.fillPoints(box(la0 + 1.5, ln - 1.5, la1 - 1.5, ln + 1.5), true, true);
       }
     } else {
-      // Small glowing logo box on the roof corner.
-      const bw = rangeRand(r, 20, 38);
-      const bh = rangeRand(r, 14, 22);
+      // Small lit logo box on the roof.
+      const bw = rangeRand(r, 20, 36);
+      const bh = rangeRand(r, 13, 20);
       const off = rangeRand(r, -halfA * 0.4, halfA * 0.4);
       const la0 = off - bw / 2;
       const la1 = off + bw / 2;
       const ln0 = topN + 4;
       const ln1 = topN + 4 + bh;
-      const box = [pt(la0, ln0), pt(la1, ln0), pt(la1, ln1), pt(la0, ln1)];
-      gTop.fillStyle(mixColor(COLORS.bgDeep, signNeon, 0.3), 1);
-      gTop.fillPoints(box, true, true);
-      gTop.lineStyle(4, signNeon, 0.16);
-      gTop.strokePoints(box, true, true);
-      gTop.lineStyle(1.5, signNeon, 1);
-      gTop.strokePoints(box, true, true);
-      // Bright logo dot/dash.
-      gTop.fillStyle(mixColor(signNeon, COLORS.white, 0.6), 1);
-      gTop.fillPoints(
-        [
-          pt(off - bw * 0.18, (ln0 + ln1) / 2 - 2),
-          pt(off + bw * 0.18, (ln0 + ln1) / 2 - 2),
-          pt(off + bw * 0.18, (ln0 + ln1) / 2 + 2),
-          pt(off - bw * 0.18, (ln0 + ln1) / 2 + 2),
-        ],
-        true,
-        true,
-      );
+      gTop.fillStyle(mixColor(sign, COLORS.bgDeep, 0.32), 1);
+      gTop.fillPoints(box(la0, ln0, la1, ln1), true, true);
+      gTop.lineStyle(1.5, mixColor(sign, COLORS.white, 0.22), 1);
+      gTop.strokePoints(box(la0, ln0, la1, ln1), true, true);
+      gTop.fillStyle(mixColor(sign, COLORS.white, 0.5), 1);
+      gTop.fillPoints(box(off - bw * 0.18, (ln0 + ln1) / 2 - 2, off + bw * 0.18, (ln0 + ln1) / 2 + 2), true, true);
+    }
+  }
+
+  // Street lamps along both kerbs — a dark post arm and a warm light pool that
+  // spills onto the road edge. Sells the "actual street" feel.
+  _drawLampPosts() {
+    const gPost = this._g(-8);
+    const key = 'lamp_glow';
+    if (!this.scene.textures.exists(key)) {
+      makeSoftCircle(this.scene, key, 128, COLORS.lamp);
+      this._haloKeys.push(key);
+    }
+    for (const side of [1, -1]) {
+      let d = rangeRand(this._rnd, 80, 170);
+      while (d < this.total - 30) {
+        const c = this.track.pointAtDistance(d);
+        const n = unit(c.nx, c.ny);
+        const baseX = c.x + n.x * side * (this.half + 16);
+        const baseY = c.y + n.y * side * (this.half + 16);
+        const headX = c.x + n.x * side * (this.half + 1);
+        const headY = c.y + n.y * side * (this.half + 1);
+        // warm light pool on the road
+        const lx = c.x + n.x * side * (this.half - 8);
+        const ly = c.y + n.y * side * (this.half - 8);
+        const pool = this.scene.add
+          .image(lx, ly, key)
+          .setDepth(-9)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setAlpha(0.2)
+          .setScale(1.1);
+        this.images.push(pool);
+        // post arm + warm lamp head
+        gPost.lineStyle(3, 0x2b2d33, 1);
+        gPost.beginPath();
+        gPost.moveTo(baseX, baseY);
+        gPost.lineTo(headX, headY);
+        gPost.strokePath();
+        gPost.fillStyle(COLORS.lamp, 1);
+        gPost.fillCircle(headX, headY, 3.5);
+        d += rangeRand(this._rnd, 160, 240);
+      }
     }
   }
 
