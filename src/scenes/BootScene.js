@@ -19,6 +19,9 @@ export default class BootScene extends Phaser.Scene {
         splash.classList.add('hidden');
         setTimeout(() => splash.remove(), 500);
       }
+      // Re-measure now that fonts + layout have settled, so the FIT display scale
+      // (and therefore pointer-coordinate mapping) is correct from the first frame.
+      this.scale.refresh();
       const next = Save.current ? 'MenuScene' : 'ProfileScene';
       this.scene.start(next);
     };

@@ -52,6 +52,13 @@ const config = {
 
 const game = new Phaser.Game(config);
 
+// Re-measure the canvas once layout/fonts settle so the FIT scale used for input
+// mapping is accurate from the start (otherwise clicks can land offset until the
+// first window resize).
+const refit = () => game.scale.refresh();
+window.addEventListener('load', refit);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(refit).catch(() => {});
+
 // Dev-only debug hook for scripted verification (stripped from production build).
 if (import.meta.env && import.meta.env.DEV) {
   window.KANSEI = { game, Save };

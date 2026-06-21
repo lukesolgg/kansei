@@ -30,12 +30,13 @@
         -webkit-tap-highlight-color: transparent;
         touch-action: none;
       }
+      /* Full-viewport host. Phaser's autoCenter handles centring the canvas —
+         do NOT add flexbox centring here, it fights autoCenter and throws off
+         pointer-coordinate mapping. */
       #game {
         position: fixed;
         inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        overflow: hidden;
       }
       #game canvas {
         /* Subtle CRT-ish vignette glow behind the canvas */
