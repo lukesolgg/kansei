@@ -92,16 +92,25 @@ export const ZONES = {
 // with tools/trackcheck.mjs: closure error 0, no self-overlap). Mixed corner types
 // for flow: sweeper, esses to flick through, a tighter right to set up the return.
 const GENTEN_HALF = [
-  ['s', 620], // start straight (entry speed)
-  ['r', 90, 470], // fast sweeper
-  ['s', 300],
-  ['l', 50, 320], // esse out
-  ['s', 240],
-  ['r', 80, 330], // sweeper back
-  ['s', 340],
-  ['l', 45, 300], // flick
-  ['s', 240],
-  ['r', 105, 270], // tighter right to set up the return (net of HALF = +180)
+  ['s', 800], // long start straight (entry speed)
+  ['r', 70, 460], // fast sweeper
+  ['s', 500],
+  ['l', 55, 380], // esse out
+  ['s', 420],
+  ['r', 65, 400], // sweeper back
+  ['s', 600],
+  ['l', 50, 360], // flick
+  ['s', 450],
+  ['r', 180, 250], // HAIRPIN (skyscraper corner)
+  ['s', 500],
+  ['l', 90, 300], // open left
+  ['s', 480],
+  ['r', 75, 380], // sweeper
+  ['s', 520],
+  ['l', 60, 340], // esse
+  ['s', 450],
+  ['r', 45, 400], // gentle right to set up the return
+  ['s', 400], // net of HALF = +180:  +70-55+65-50+180-90+75-60+45
 ];
 
 // Raw level definitions. order is the global index (drives unlock + difficulty).
@@ -170,8 +179,32 @@ const RAW = [
   },
 ];
 
+// The full GENTEN loop path — stages are slices of this.
+const GENTEN_LOOP_PATH = buildPath([...GENTEN_HALF, ...GENTEN_HALF]);
+
+// Six stages = six equal arcs of the loop, each a point-to-point run earning stars.
+const STAGE_COUNT = 6;
+const GENTEN_STAGES = [];
+for (let i = 0; i < STAGE_COUNT; i++) {
+  GENTEN_STAGES.push({
+    id: 'genten-s' + (i + 1), zone: 'docks', name: 'Genten — Stage ' + (i + 1), order: i,
+    map: 'genten', stage: i + 1, stageSlice: [i / STAGE_COUNT, (i + 1) / STAGE_COUNT],
+    roadWidth: 300, fuelStart: 0.9, scoreBronze: 7000, scoreGold: 16000,
+    fuelCans: 5, cashTokens: 8, boosters: 2, ramps: 0,
+  });
+}
+RAW.push(...GENTEN_STAGES);
+
 export const LEVELS = RAW.map((lvl) => {
-  const path = buildPath(lvl.segments, lvl.startAngle || 0);
+  let path;
+  if (lvl.stageSlice) {
+    const n = GENTEN_LOOP_PATH.length;
+    const a = Math.floor(lvl.stageSlice[0] * n);
+    const b = Math.min(n - 1, Math.floor(lvl.stageSlice[1] * n));
+    path = GENTEN_LOOP_PATH.slice(a, b + 1).map((p) => ({ x: p.x, y: p.y }));
+  } else {
+    path = buildPath(lvl.segments, lvl.startAngle || 0);
+  }
   return {
     ...lvl,
     // Roads are 25% wider than authored — more room for the street, roadside props
@@ -184,12 +217,18 @@ export const LEVELS = RAW.map((lvl) => {
     zoneData: ZONES[lvl.zone],
     path,
     length: pathLength(path),
-    // Need at least `order` total stars to unlock — i.e. clearing prior levels
-    // (1 star each for finishing) always unlocks the next. Stars beyond that are
-    // bonus cash + completion.
     unlockStars: lvl.order,
   };
 });
+
+// The map screen: GENTEN (Free Mode + 6 stages) and four locked "???" maps to come.
+export const MAPS = [
+  { id: 'genten', name: 'GENTEN', subtitle: '原点 — THE ORIGIN', locked: false, free: 'genten', stages: GENTEN_STAGES.map((s) => s.id) },
+  { id: 'm2', name: '???', subtitle: 'LOCKED', locked: true },
+  { id: 'm3', name: '???', subtitle: 'LOCKED', locked: true },
+  { id: 'm4', name: '???', subtitle: 'LOCKED', locked: true },
+  { id: 'm5', name: '???', subtitle: 'LOCKED', locked: true },
+];
 
 export function getLevelById(id) {
   return LEVELS.find((l) => l.id === id) || null;

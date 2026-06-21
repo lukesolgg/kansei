@@ -203,6 +203,15 @@ export class CityDecor {
         const isLandmark = landmarkBudget > 0 && this._rnd() < 0.16;
         if (isLandmark) landmarkBudget--;
 
+        // Tight corners (hairpins) get a glass SKYSCRAPER on the far side.
+        const a0 = this.track._tangentAngle(this.track.pointAtDistance(Math.max(0, d - 50)));
+        const a1 = this.track._tangentAngle(this.track.pointAtDistance(Math.min(this.total, d + 50)));
+        let dA = a1 - a0;
+        while (dA > Math.PI) dA -= 2 * Math.PI;
+        while (dA < -Math.PI) dA += 2 * Math.PI;
+        const isNorth = n.y * side < 0;
+        const skyscraper = Math.abs(dA) > 0.36 && isNorth;
+
         this._drawBuilding(gShadow, gFace, gTop, {
           cx: fcx,
           cy: fcy,
@@ -218,7 +227,8 @@ export class CityDecor {
           isLandmark,
           // Far (screen-north) buildings show their street face; near (south)
           // ones show just their roofs — like looking up the street.
-          isNorth: n.y * side < 0,
+          isNorth,
+          skyscraper,
         });
 
         d += spacing;
@@ -260,6 +270,40 @@ export class CityDecor {
     const shadowDepth = rangeRand(r, 16, 30);
     gShadow.fillStyle(COLORS.bgDeep, 0.5);
     gShadow.fillPoints(rect(-halfA - 4, -halfN - shadowDepth, halfA + 4, -halfN + 2), true, true);
+
+    // ---- Glass SKYSCRAPER at hairpin corners (far side). A tall blue-glass tower
+    // with a fine curtain-wall grid, a tall roof behind, and an antenna. ----
+    if (o.skyscraper) {
+      const glass = 0x2b4763;
+      const glassHi = mixColor(glass, COLORS.cyan, 0.32);
+      const rise = rangeRand(r, 100, 160);
+      gFace.fillStyle(glass, 1);
+      gFace.fillPoints(rect(-halfA, -halfN, halfA, halfN), true, true);
+      gFace.fillStyle(glassHi, 0.22); // raking sheen down one side
+      gFace.fillPoints(rect(-halfA, -halfN, -halfA + o.along * 0.22, halfN), true, true);
+      gFace.lineStyle(2, mixColor(glass, COLORS.bgDeep, 0.5), 1);
+      gFace.strokePoints([pt(-halfA, -halfN), pt(halfA, -halfN), pt(halfA, halfN), pt(-halfA, halfN)], true, true);
+      // fine glass curtain-wall grid
+      const cell = 9;
+      const win = 6;
+      for (let la = -halfA + 7; la <= halfA - 7 - win; la += cell) {
+        for (let ln = -halfN + 7; ln <= halfN - 7 - win; ln += cell) {
+          const roll = r();
+          gFace.fillStyle(roll < 0.4 ? mixColor(glass, COLORS.bgDeep, 0.3) : roll < 0.75 ? glassHi : mixColor(COLORS.amber, COLORS.white, 0.3), 0.7);
+          this._fillWinSquare(gFace, pt, la, ln, win);
+        }
+      }
+      // tall glass roof rising away from the road + antenna with a red beacon
+      gTop.fillStyle(mixColor(glass, COLORS.cyan, 0.14), 1);
+      gTop.fillPoints(rect(-halfA + 2, halfN, halfA - 2, halfN + rise), true, true);
+      gTop.lineStyle(2, mixColor(glass, COLORS.bgDeep, 0.4), 1);
+      gTop.strokePoints([pt(-halfA + 2, halfN), pt(halfA - 2, halfN), pt(halfA - 2, halfN + rise), pt(-halfA + 2, halfN + rise)], true, true);
+      gTop.fillStyle(0xc8d8e8, 1);
+      gTop.fillPoints(rect(-2, halfN + rise, 2, halfN + rise + 26), true, true);
+      gTop.fillStyle(COLORS.red, 1);
+      gTop.fillPoints(rect(-3.5, halfN + rise + 24, 3.5, halfN + rise + 29), true, true);
+      return;
+    }
 
     if (!o.isNorth) {
       // NEAR (screen-south) side: you're looking at the BACKS of these, so just a

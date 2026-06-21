@@ -127,10 +127,11 @@ export class InputController {
     };
   }
 
+  // Gamepad Start only — keyboard pause is handled by an edge-triggered keydown
+  // event in GameScene (polling JustDown can stick "down" if the key-up happens
+  // while the scene is paused, which then swallows the next pause press).
   pausePressed() {
-    let pressed =
-      Phaser.Input.Keyboard.JustDown(this.keys.esc) ||
-      Phaser.Input.Keyboard.JustDown(this.keys.p);
+    let pressed = false;
     const pad = this._gamepad();
     if (pad && pad.buttons[9]) {
       const down = pad.buttons[9].pressed; // Start

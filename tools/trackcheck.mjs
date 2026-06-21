@@ -44,18 +44,27 @@ function buildPath(segments) {
 const ROAD_BASE = 300;
 const EFF_HALF = (ROAD_BASE * 1.25) / 2;
 const HALF = [
-  ['s', 620],        // start straight (entry speed)
-  ['r', 90, 470],    // fast sweeper
-  ['s', 300],
-  ['l', 50, 320],    // esse out
-  ['s', 240],
-  ['r', 80, 330],    // sweeper back
-  ['s', 340],
-  ['l', 45, 300],    // flick
-  ['s', 240],
-  ['r', 105, 270],   // tighter right to set up the return
+  ['s', 800],        // long start straight (entry speed)
+  ['r', 70, 460],    // fast sweeper
+  ['s', 500],
+  ['l', 55, 380],    // esse out
+  ['s', 420],
+  ['r', 65, 400],    // sweeper back
+  ['s', 600],
+  ['l', 50, 360],    // flick
+  ['s', 450],
+  ['r', 180, 250],   // HAIRPIN (skyscraper corner)
+  ['s', 500],
+  ['l', 90, 300],    // open left
+  ['s', 480],
+  ['r', 75, 380],    // sweeper
+  ['s', 520],
+  ['l', 60, 340],    // esse
+  ['s', 450],
+  ['r', 45, 400],    // gentle right to set up the return
+  ['s', 400],
 ];
-// net of HALF must be +180:  +90 -50 +80 -45 +105 = +180
+// net of HALF must be +180: +70-55+65-50+180-90+75-60+45 = +180
 const segments = [...HALF, ...HALF];
 
 const { pts, bounds, endAng, net } = buildPath(segments);

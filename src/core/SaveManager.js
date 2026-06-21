@@ -240,14 +240,16 @@ class SaveManager {
   }
 
   // ---- Levels -------------------------------------------------------------
-  getLevel(levelId) {
+  // Per-stage progress. (Distinct from getLevel() above, which is the player's XP
+  // LEVEL — two methods with the same name would silently collide.)
+  getLevelProgress(levelId) {
     if (!this.current) return { cleared: false, stars: 0, bestScore: 0 };
     return this.current.levels[levelId] || { cleared: false, stars: 0, bestScore: 0 };
   }
 
   recordLevel(levelId, { cleared, stars, score }) {
     if (!this.current) return;
-    const prev = this.getLevel(levelId);
+    const prev = this.getLevelProgress(levelId);
     this.current.levels[levelId] = {
       cleared: prev.cleared || cleared,
       stars: Math.max(prev.stars || 0, stars || 0),

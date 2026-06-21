@@ -95,6 +95,11 @@ export default class GameScene extends Phaser.Scene {
     // State machine: intro -> play -> over
     this.state = 'intro';
     this.paused = false;
+    // Keyboard pause is edge-triggered (keydown events), not JustDown polling, so a
+    // key-up missed while paused can't swallow the next pause press.
+    const tryPause = () => { if (this.state === 'play' && !this.paused) this._togglePause(); };
+    this.input.keyboard.on('keydown-ESC', tryPause);
+    this.input.keyboard.on('keydown-P', tryPause);
     // PauseScene resumes us via scene.resume() -> 'resume' event; unfreeze physics.
     this.events.on('resume', () => this._onResumed());
     this._startEngineSoon();
@@ -529,6 +534,8 @@ export default class GameScene extends Phaser.Scene {
   _onResumed() {
     this.paused = false;
     if (this.matter && this.matter.world) this.matter.world.resume();
+    // The ESC key-up landed while we were paused, so clear any stuck key state.
+    try { this.input.keyboard.resetKeys(); } catch (_) {}
   }
 
   // ---- End ---------------------------------------------------------------
