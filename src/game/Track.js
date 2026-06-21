@@ -348,6 +348,11 @@ export class Track {
       const pt = this.pointAtDistance(frac * this.total);
       this._addPad('ramp', pt.x, pt.y, this._tangentAngle(pt));
     }
+    // Hand-placed jumps at explicit track fractions (for authored maps).
+    for (const frac of L.jumpFracs || []) {
+      const pt = this.pointAtDistance(frac * this.total);
+      this._addPad('ramp', pt.x, pt.y, this._tangentAngle(pt));
+    }
   }
 
   _addPickup(type, x, y) {

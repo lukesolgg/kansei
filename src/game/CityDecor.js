@@ -66,6 +66,20 @@ export class CityDecor {
     return g;
   }
 
+  // Min distance from (x,y) to the whole road centreline (full scan; placement
+  // is one-time). Props use this so nothing sits on a loop-back stretch of road.
+  _roadDist(x, y) {
+    const p = this.path;
+    let best = Infinity;
+    for (let i = 0; i < p.length; i += 2) {
+      const dx = p[i].x - x;
+      const dy = p[i].y - y;
+      const d = dx * dx + dy * dy;
+      if (d < best) best = d;
+    }
+    return Math.sqrt(best);
+  }
+
   // ---- Ground: faint wet-asphalt sheen + distant smaller grid UNDER the road.
   // Sits at -12 (above the -20 background, below the -10 road fill) so it never
   // covers the drivable surface.
@@ -143,6 +157,29 @@ export class CityDecor {
         const baseOff = this.half + gap;
         const fcx = c.x + n.x * side * (baseOff + depth / 2);
         const fcy = c.y + n.y * side * (baseOff + depth / 2);
+
+        // Reject if ANY part of the footprint would sit on the road anywhere —
+        // on hairpins/loop-backs the track passes close, so a "just outside the
+        // edge" block can land on a different part of the road. Sample a grid of
+        // the footprint against the whole centreline.
+        const ox = n.x * side;
+        const oy = n.y * side;
+        const halfA = along / 2;
+        let clear = true;
+        outer: for (const ta of [-1, -0.5, 0, 0.5, 1]) {
+          for (const off of [baseOff, baseOff + depth / 2, baseOff + depth]) {
+            const sx = c.x + ox * off + tx * ta * halfA;
+            const sy = c.y + oy * off + ty * ta * halfA;
+            if (this._roadDist(sx, sy) < this.half + 16) {
+              clear = false;
+              break outer;
+            }
+          }
+        }
+        if (!clear) {
+          d += rangeRand(this._rnd, 80, 140);
+          continue;
+        }
 
         // Decide if this is a landmark billboard tower.
         const isLandmark = landmarkBudget > 0 && this._rnd() < 0.16;
@@ -367,6 +404,11 @@ export class CityDecor {
         const baseY = c.y + n.y * side * (this.half + 16);
         const headX = c.x + n.x * side * (this.half + 1);
         const headY = c.y + n.y * side * (this.half + 1);
+        // Skip if the post would stand on another (loop-back) stretch of road.
+        if (this._roadDist(baseX, baseY) < this.half) {
+          d += rangeRand(this._rnd, 80, 140);
+          continue;
+        }
         // warm light pool on the road
         const lx = c.x + n.x * side * (this.half - 8);
         const ly = c.y + n.y * side * (this.half - 8);

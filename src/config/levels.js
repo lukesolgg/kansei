@@ -91,14 +91,24 @@ export const ZONES = {
 const RAW = [
   // ---- Neon Docks --------------------------------------------------------
   {
-    id: 'docks-1', zone: 'docks', name: 'Harbor Warmup', order: 0,
-    roadWidth: 330, fuelStart: 0.78, scoreBronze: 12000, scoreGold: 26000,
-    fuelCans: 6, cashTokens: 16, boosters: 4, ramps: 2,
-    // Long technical switchback: six 180° horseshoes of varied tightness.
+    id: 'genten', zone: 'docks', name: 'Genten', order: 0,
+    roadWidth: 320, fuelStart: 0.82, scoreBronze: 14000, scoreGold: 30000,
+    fuelCans: 8, cashTokens: 18, boosters: 3, ramps: 0, jumpFracs: [0.287],
+    // GENTEN (原点, "the origin / starting point"). Section-built and verified
+    // overlap-free (tools/trackcheck.mjs): intro straight -> big tightening right
+    // (~135°) -> left horseshoe -> jump straight -> twin hairpins (the jump can
+    // leap across them) -> massive semicircle (big drift) -> flowing run to finish.
     segments: [
-      ['s', 600], ['r', 180, 300], ['s', 560], ['l', 180, 260], ['s', 520],
-      ['r', 180, 300], ['s', 600], ['l', 180, 250], ['s', 520], ['r', 180, 290],
-      ['s', 560], ['l', 180, 270], ['s', 640],
+      ['s', 280],
+      ['r', 95, 360], ['r', 40, 230],
+      ['l', 180, 300],
+      ['s', 780],
+      ['r', 180, 230],
+      ['s', 320],
+      ['l', 180, 230],
+      ['s', 300],
+      ['r', 180, 460],
+      ['s', 380], ['l', 85, 320], ['s', 320], ['r', 70, 300], ['s', 440],
     ],
   },
   {
