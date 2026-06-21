@@ -5,7 +5,7 @@
 import Phaser from 'phaser';
 import { TUNING } from '../config/gameplay.js';
 import { UPGRADES } from '../config/upgrades.js';
-import { makeCarTexture, addGlow } from '../core/neon.js';
+import { makeCarTexture, addGlow, makeSoftCircle } from '../core/neon.js';
 
 // Matter expresses velocity in pixels-per-step. At ~60fps that's px/sec ÷ 60.
 const STEP = 1 / 60;
@@ -62,6 +62,14 @@ export class Car {
     this.visual = scene.add.image(x, y, texKey).setDepth(20).setRotation(angle);
     addGlow(this.visual, carDef.color, 4, 0);
 
+    // Drop shadow + airborne state for jumps/ramps.
+    makeSoftCircle(scene, 'carshadow', 96, 0x05040b);
+    this.shadowBase = (carDef.gfxLength / 96) * 1.25;
+    this.shadow = scene.add.image(x, y, 'carshadow').setDepth(18).setAlpha(0).setScale(this.shadowBase);
+    this.airborne = 0;
+    this.airMax = 0;
+    this.justLanded = false;
+
     // Live read-outs for HUD / scorer / fx.
     this.speed = 0;
     this.forwardSpeed = 0;
@@ -99,6 +107,15 @@ export class Car {
   update(dt, input, hasFuel) {
     if (dt <= 0) return;
     if (this.crashCooldown > 0) this.crashCooldown -= dt;
+
+    this.justLanded = false;
+    if (this.airborne > 0) {
+      this.airborne -= dt;
+      if (this.airborne <= 0) {
+        this.airborne = 0;
+        this.justLanded = true;
+      }
+    }
 
     const throttle = hasFuel ? input.throttle : 0;
     const brake = input.brake;
@@ -254,10 +271,30 @@ export class Car {
     const perpX = -Math.sin(this.heading);
     const perpY = Math.cos(this.heading);
     const lean = Phaser.Math.Clamp(this.slip * 9, -11, 11); // weight shifts outward
-    this.visual.setPosition(this.x + perpX * lean, this.y + perpY * lean);
+    // Jump arc: lift the sprite off its shadow while airborne.
+    let jumpH = 0;
+    let jumpScale = 1;
+    if (this.airborne > 0 && this.airMax > 0) {
+      const arc = Math.sin((1 - this.airborne / this.airMax) * Math.PI); // 0 → 1 → 0
+      jumpH = arc * 82;
+      jumpScale = 1 + arc * 0.45;
+    }
+    this.visual.setPosition(this.x + perpX * lean, this.y + perpY * lean - jumpH);
     this.visual.setRotation(this.heading);
     const stretch = 1 + Math.min(0.1, this.effDrift * 0.12);
-    this.visual.setScale(stretch, 1 - Math.min(0.06, this.effDrift * 0.08));
+    this.visual.setScale(stretch * jumpScale, (1 - Math.min(0.06, this.effDrift * 0.08)) * jumpScale);
+    const h01 = jumpH / 82;
+    this.shadow.setPosition(this.x, this.y);
+    this.shadow.setAlpha(this.airborne > 0 ? 0.5 - 0.35 * h01 : 0);
+    this.shadow.setScale(this.shadowBase * (1 - 0.25 * h01));
+  }
+
+  // Launch off a ramp. duration (seconds airborne) is decided by the caller from
+  // how fast you hit it.
+  jump(duration) {
+    if (this.airborne > 0) return;
+    this.airborne = duration;
+    this.airMax = duration;
   }
 
   // Bounce off an obstacle at (ox, oy): shove outward and bleed speed.
@@ -283,7 +320,9 @@ export class Car {
   destroy() {
     if (this.sprite) this.sprite.destroy();
     if (this.visual) this.visual.destroy();
+    if (this.shadow) this.shadow.destroy();
     this.sprite = null;
     this.visual = null;
+    this.shadow = null;
   }
 }

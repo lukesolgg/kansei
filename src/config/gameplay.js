@@ -83,7 +83,10 @@ export const TUNING = {
   finishBonus: 400, // flat cash for finishing
   starBonus: 250, // extra cash per star earned
 
-  // ---- Obstacles ---------------------------------------------------------
+  // ---- Obstacles & pads --------------------------------------------------
   crashSpeedLoss: 0.55, // fraction of speed lost on obstacle hit
   crashShakeMs: 220,
+  trashSlow: 0.7, // velocity multiplier when you clip a trash can (soft slow)
+  boostPadPower: 135, // forward px/s kick from a booster pad
+  rampMinSpeed: 120, // need at least this speed for a ramp to launch you
 };

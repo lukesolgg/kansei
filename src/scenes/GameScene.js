@@ -63,6 +63,7 @@ export default class GameScene extends Phaser.Scene {
     // Pickups touched during a physics step are queued and processed AFTER the
     // step — destroying a Matter body mid-step corrupts the engine.
     this._pendingPickups = [];
+    this._pendingTrash = null;
 
     // Particles
     this._particles();
@@ -178,8 +179,13 @@ export default class GameScene extends Phaser.Scene {
         // Defer: don't destroy the pickup body inside the physics step.
         if (other.gameObject && other.gameObject.body) this._pendingPickups.push(other.gameObject);
       } else if (other.label === 'obstacle') {
-        // Safe mid-step: only mutates our own velocity + camera, no body removal.
-        this._crash(other.position.x, other.position.y);
+        if (!this.car.airborne) this._crash(other.position.x, other.position.y);
+      } else if (other.label === 'booster') {
+        this._boostPad();
+      } else if (other.label === 'ramp') {
+        this._hitRamp();
+      } else if (other.label === 'trash') {
+        if (!this.car.airborne && other.gameObject) this._pendingTrash = other.gameObject;
       }
     }
   }
@@ -219,6 +225,39 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  _boostPad() {
+    const c = this.car;
+    c.vx += Math.cos(c.heading) * TUNING.boostPadPower;
+    c.vy += Math.sin(c.heading) * TUNING.boostPadPower;
+    c.boost = Math.max(c.boost, 0.6);
+    Audio.sfx('combo');
+    this.smoke.emitParticleAt(c.x, c.y, 6);
+    pulseBloom(this.fx, 1.4);
+  }
+
+  _hitRamp() {
+    const c = this.car;
+    if (c.airborne > 0 || c.speed < TUNING.rampMinSpeed) return;
+    c.jump(Phaser.Math.Clamp(c.speed / 480, 0.45, 1.15));
+    Audio.sfx('combo');
+  }
+
+  _hitTrash(sprite) {
+    const c = this.car;
+    c.vx *= TUNING.trashSlow;
+    c.vy *= TUNING.trashSlow;
+    Audio.sfx('back');
+    this.sparks.emitParticleAt(c.x, c.y, 8);
+    this.track.collectTrash(sprite);
+  }
+
+  _onLand() {
+    this.car.boost = Math.max(this.car.boost, 0.45);
+    Audio.sfx('combo');
+    this.smoke.emitParticleAt(this.car.x, this.car.y, 10);
+    if (Save.settings.shake) this.cameras.main.shake(120, 0.006);
+  }
+
   _popup(x, y, text, color) {
     const t = this.add.text(x, y - 20, text, { ...titleStyle(22), color: hex(color) })
       .setOrigin(0.5).setDepth(40).setShadow(0, 0, hex(color), 10, false, true);
@@ -249,17 +288,22 @@ export default class GameScene extends Phaser.Scene {
     const input = this.input2.read(realDt);
     const hasFuel = this.fuel > 0;
 
-    this.car.offTrack = this.track.isOffTrack(this.car.x, this.car.y);
+    this.car.offTrack = this.car.airborne ? false : this.track.isOffTrack(this.car.x, this.car.y);
     this.car.update(dt, input, hasFuel);
+    if (this.car.justLanded) this._onLand();
 
     // Process pickups touched during the just-finished physics step (safe now).
     if (this._pendingPickups.length) {
       for (const s of this._pendingPickups) this._collect(s);
       this._pendingPickups.length = 0;
     }
+    if (this._pendingTrash) {
+      this._hitTrash(this._pendingTrash);
+      this._pendingTrash = null;
+    }
 
-    // Bounce off the track-edge walls.
-    this._wallBounce();
+    // Bounce off the track-edge walls (not while airborne — you fly over them).
+    if (!this.car.airborne) this._wallBounce();
 
     // Fuel burn (real time, so slow-mo doesn't refund fuel)
     if (hasFuel) {

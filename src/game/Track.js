@@ -31,6 +31,8 @@ export class Track {
     this.zone = level.zoneData;
     this.pickups = []; // { sprite, halo, type, value, collected }
     this.obstacles = [];
+    this.pads = []; // boosters + ramps (persistent sensors)
+    this.trash = [];
     this._lastIdx = 0;
     this.maxProgress = 0;
 
@@ -41,6 +43,12 @@ export class Track {
     this._drawStartFinish();
     this._placePickups();
     this._placeObstacles();
+    this._placeExtras();
+  }
+
+  // Tangent (forward) angle of the track at a sampled point.
+  _tangentAngle(pt) {
+    return Math.atan2(-pt.nx, pt.ny);
   }
 
   // ---- Geometry helpers --------------------------------------------------
@@ -282,6 +290,102 @@ export class Track {
     }
     makeSoftCircle(s, 'soft_amber', 96, COLORS.amber);
     makeSoftCircle(s, 'soft_lime', 96, COLORS.lime);
+
+    if (!s.textures.exists('pad_boost')) {
+      const g = s.make.graphics({ x: 0, y: 0, add: false });
+      g.fillStyle(mixColor(COLORS.cyan, COLORS.bgDeep, 0.55), 0.55);
+      g.fillRoundedRect(4, 8, 84, 48, 6);
+      g.lineStyle(2, COLORS.cyan, 1);
+      g.strokeRoundedRect(4, 8, 84, 48, 6);
+      for (let i = 0; i < 3; i++) {
+        const cx = 26 + i * 20;
+        g.lineStyle(5, COLORS.cyan, 1);
+        g.beginPath();
+        g.moveTo(cx - 9, 18);
+        g.lineTo(cx + 4, 32);
+        g.lineTo(cx - 9, 46);
+        g.strokePath();
+      }
+      g.generateTexture('pad_boost', 92, 64);
+      g.destroy();
+    }
+    if (!s.textures.exists('pad_ramp')) {
+      const g = s.make.graphics({ x: 0, y: 0, add: false });
+      g.fillStyle(mixColor(COLORS.amber, COLORS.bgDeep, 0.35), 0.8);
+      g.fillRoundedRect(4, 10, 66, 44, 5);
+      g.lineStyle(2, COLORS.amber, 1);
+      g.strokeRoundedRect(4, 10, 66, 44, 5);
+      g.fillStyle(0x16151c, 1);
+      for (let i = 0; i < 3; i++) g.fillRect(14 + i * 16, 14, 8, 36);
+      g.fillStyle(COLORS.white, 0.95); // bright launch lip at the +x end
+      g.fillRect(62, 10, 8, 44);
+      g.generateTexture('pad_ramp', 76, 64);
+      g.destroy();
+    }
+    if (!s.textures.exists('trash')) {
+      const g = s.make.graphics({ x: 0, y: 0, add: false });
+      g.fillStyle(0x33333d, 1);
+      g.fillRoundedRect(8, 12, 24, 28, 4);
+      g.lineStyle(2, 0x6a6a78, 1);
+      g.strokeRoundedRect(8, 12, 24, 28, 4);
+      g.fillStyle(0x4a4a55, 1);
+      g.fillRoundedRect(6, 6, 28, 8, 3);
+      g.fillStyle(0x24242b, 1);
+      for (let i = 0; i < 3; i++) g.fillRect(13 + i * 7, 16, 3, 20);
+      g.generateTexture('trash', 40, 46);
+      g.destroy();
+    }
+  }
+
+  _addPad(type, x, y, angle) {
+    const key = type === 'ramp' ? 'pad_ramp' : 'pad_boost';
+    const sprite = this.scene.matter.add.sprite(x, y, key, null, {
+      isStatic: true,
+      isSensor: true,
+      shape: { type: 'rectangle', width: type === 'ramp' ? 64 : 80, height: 56 },
+      label: type,
+      angle,
+    });
+    sprite.setDepth(3);
+    this.pads.push(sprite);
+  }
+
+  _addTrash(x, y) {
+    const sprite = this.scene.matter.add.sprite(x, y, 'trash', null, {
+      isStatic: true,
+      isSensor: true,
+      shape: { type: 'circle', radius: 16 },
+      label: 'trash',
+    });
+    sprite.setDepth(6);
+    this.trash.push(sprite);
+  }
+
+  _placeExtras() {
+    const L = this.level;
+    for (let i = 0; i < (L.boosters || 0); i++) {
+      const frac = 0.12 + (0.76 * (i + 0.5)) / L.boosters;
+      const pt = this.pointAtDistance(frac * this.total);
+      this._addPad('booster', pt.x, pt.y, this._tangentAngle(pt));
+    }
+    for (let i = 0; i < (L.ramps || 0); i++) {
+      const frac = 0.22 + (0.56 * (i + 0.5)) / Math.max(1, L.ramps);
+      const pt = this.pointAtDistance(frac * this.total);
+      this._addPad('ramp', pt.x, pt.y, this._tangentAngle(pt));
+    }
+    for (let i = 0; i < (L.trashCans || 0); i++) {
+      const frac = 0.1 + (0.8 * (i + 0.5)) / Math.max(1, L.trashCans);
+      const pt = this.pointAtDistance(frac * this.total);
+      const off = rangeRand(this._rnd, -0.62, 0.62) * this.half;
+      this._addTrash(pt.x + pt.nx * off, pt.y + pt.ny * off);
+    }
+  }
+
+  collectTrash(sprite) {
+    if (!sprite || !sprite.body) return false;
+    this.scene.tweens.killTweensOf(sprite);
+    sprite.destroy();
+    return true;
   }
 
   _addPickup(type, x, y) {

@@ -93,7 +93,7 @@ const RAW = [
   {
     id: 'docks-1', zone: 'docks', name: 'Harbor Warmup', order: 0,
     roadWidth: 330, fuelStart: 0.78, scoreBronze: 12000, scoreGold: 26000,
-    fuelCans: 6, cashTokens: 16, obstacles: 10,
+    fuelCans: 6, cashTokens: 16, obstacles: 10, boosters: 4, ramps: 2, trashCans: 8,
     // Long technical switchback: six 180° horseshoes of varied tightness.
     segments: [
       ['s', 600], ['r', 180, 300], ['s', 560], ['l', 180, 260], ['s', 520],
