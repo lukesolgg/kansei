@@ -60,6 +60,9 @@ export default class GameScene extends Phaser.Scene {
     this.fuel = this.fuelMax * level.fuelStart;
     this.cashCollected = 0;
     this.strandTimer = 0;
+    // Pickups touched during a physics step are queued and processed AFTER the
+    // step — destroying a Matter body mid-step corrupts the engine.
+    this._pendingPickups = [];
 
     // Particles
     this._particles();
@@ -165,29 +168,36 @@ export default class GameScene extends Phaser.Scene {
       else if (bb.label === 'car') other = a;
       else continue;
       if (other.label === 'fuel' || other.label === 'cash') {
-        this._collect(other.gameObject);
+        // Defer: don't destroy the pickup body inside the physics step.
+        if (other.gameObject && other.gameObject.body) this._pendingPickups.push(other.gameObject);
       } else if (other.label === 'obstacle') {
+        // Safe mid-step: only mutates our own velocity + camera, no body removal.
         this._crash(other.position.x, other.position.y);
       }
     }
   }
 
   _collect(sprite) {
-    if (!sprite) return;
+    // Guard: a destroyed pickup has no Matter body, and its .x/.y getters would
+    // throw (taking down the whole loop) if a duplicate collision fires.
+    if (!sprite || !sprite.body) return;
+    // Capture the position BEFORE collect() destroys the sprite.
+    const x = sprite.x;
+    const y = sprite.y;
     const res = this.track.collect(sprite);
     if (!res) return;
     if (res.type === 'fuel') {
       this.fuel = Math.min(this.fuelMax, this.fuel + res.value);
       Audio.sfx('fuel');
       this.collectFx.setParticleTint(COLORS.amber);
-      this.collectFx.emitParticleAt(sprite.x, sprite.y, 14);
-      this._popup(sprite.x, sprite.y, `+${res.value} FUEL`, COLORS.amber);
+      this.collectFx.emitParticleAt(x, y, 14);
+      this._popup(x, y, `+${res.value} FUEL`, COLORS.amber);
     } else {
       this.cashCollected += res.value;
       Audio.sfx('cash');
       this.collectFx.setParticleTint(COLORS.lime);
-      this.collectFx.emitParticleAt(sprite.x, sprite.y, 14);
-      this._popup(sprite.x, sprite.y, `+$${res.value}`, COLORS.lime);
+      this.collectFx.emitParticleAt(x, y, 14);
+      this._popup(x, y, `+$${res.value}`, COLORS.lime);
     }
   }
 
@@ -234,6 +244,12 @@ export default class GameScene extends Phaser.Scene {
 
     this.car.offTrack = this.track.isOffTrack(this.car.x, this.car.y);
     this.car.update(dt, input, hasFuel);
+
+    // Process pickups touched during the just-finished physics step (safe now).
+    if (this._pendingPickups.length) {
+      for (const s of this._pendingPickups) this._collect(s);
+      this._pendingPickups.length = 0;
+    }
 
     // Fuel burn (real time, so slow-mo doesn't refund fuel)
     if (hasFuel) {

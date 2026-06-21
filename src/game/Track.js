@@ -369,6 +369,10 @@ export class Track {
     const rec = sprite.getData('pickup');
     if (!rec || rec.collected) return null;
     rec.collected = true;
+    // Kill the spin/bob/halo tweens FIRST — otherwise they keep writing .angle/.y
+    // to the destroyed Matter sprite, whose body is gone, and throw.
+    this.scene.tweens.killTweensOf(rec.sprite);
+    if (rec.halo) this.scene.tweens.killTweensOf(rec.halo);
     rec.sprite.destroy();
     if (rec.halo) rec.halo.destroy();
     return { type: rec.type, value: rec.value };
