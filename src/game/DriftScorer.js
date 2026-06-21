@@ -63,6 +63,12 @@ export class DriftScorer {
     this.chain = 0;
   }
 
+  // Flat bonus banked straight into the score (e.g. a shortcut jump).
+  addBonus(amt) {
+    this.total += amt;
+    this._bankedFlash += amt;
+  }
+
   crash() {
     this.chain *= 1 - TUNING.bankPenaltyOnCrash;
     if (this.chain > 0) this._bank();

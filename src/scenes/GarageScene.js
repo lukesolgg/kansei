@@ -116,6 +116,7 @@ export default class GarageScene extends Phaser.Scene {
           const can = Save.cash >= cost;
           const btn = neonButton(this, px + pw - 80, y - 4, 110, 40, `$${fmt(cost)}`, { color: can ? def.color : COLORS.textMute, fontSize: 17, sfx: 'purchase' }, () => {
             if (Save.buyUpgrade(car.id, key2)) {
+              Save.addXp(15); // small XP bonus for investing in the car
               this.cameras.main.flash(120, 60, 255, 120);
               this.build();
             } else {

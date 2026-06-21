@@ -93,13 +93,13 @@ const RAW = [
   {
     id: 'genten', zone: 'docks', name: 'Genten', order: 0,
     roadWidth: 320, fuelStart: 0.82, scoreBronze: 14000, scoreGold: 30000,
-    fuelCans: 8, cashTokens: 18, boosters: 3, ramps: 0, jumpFracs: [0.287],
+    fuelCans: 8, cashTokens: 18, boosters: 3, ramps: 0, jumpFracs: [0.314, 0.97],
     // GENTEN (原点, "the origin / starting point"). Section-built and verified
-    // overlap-free (tools/trackcheck.mjs): intro straight -> big tightening right
-    // (~135°) -> left horseshoe -> jump straight -> twin hairpins (the jump can
-    // leap across them) -> massive semicircle (big drift) -> flowing run to finish.
+    // overlap-free (tools/trackcheck.mjs): long intro straight -> big tightening
+    // right (~135°) -> left horseshoe -> jump straight -> twin hairpins (the jump
+    // can leap across them) -> massive semicircle (big drift) -> flowing run to finish.
     segments: [
-      ['s', 280],
+      ['s', 600],
       ['r', 95, 360], ['r', 40, 230],
       ['l', 180, 300],
       ['s', 780],

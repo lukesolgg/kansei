@@ -122,4 +122,12 @@ export const TUNING = {
   rampMinSpeed: 120, // need at least this speed for a ramp to launch you
   rampLaunch: 95, // forward px/s added on launch so a fast jump carries across a gap
   rampAirMax: 1.35, // max seconds airborne (faster approach = longer flight)
+
+  // ---- Shortcut (jump-skip) bonus ----------------------------------------
+  // Clear a big chunk of track in one jump (e.g. leap the hairpins) for a bonus
+  // scaled by your current drift multiplier.
+  shortcutMinSkip: 30, // track sample-points the jump must skip to count
+  shortcutBase: 1250, // bonus = base * current drift multiplier...
+  shortcutMin: 2500, // ...clamped to this floor
+  shortcutMax: 5000, // ...and this ceiling
 };

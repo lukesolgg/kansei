@@ -3,6 +3,7 @@
 
 import { CARS, STARTER_CAR, clampSchemeIndex } from '../config/cars.js';
 import { UPGRADES } from '../config/upgrades.js';
+import { getLevelFromXp } from './leveling.js';
 
 const STORAGE_KEY = 'kansei.save.v1';
 
@@ -32,6 +33,7 @@ function blankProfile(name, pin) {
     createdAt: Date.now(),
     lastPlayed: Date.now(),
     cash: 0,
+    xp: 0, // cumulative lifetime XP; level is derived via leveling.js
     selectedCar: STARTER_CAR,
     ownedCars: { [STARTER_CAR]: true },
     // Per-car upgrade levels: { ae86: { fuel:0, engine:0, grip:0, brakes:0 } }
@@ -141,6 +143,30 @@ class SaveManager {
     this.current.cash -= amount;
     this.save();
     return true;
+  }
+
+  // ---- XP & levels (player) ----------------------------------------------
+  // Cumulative lifetime XP. Defaults to 0 so profiles saved before XP existed
+  // read as level 1 with no extra migration.
+  get xp() {
+    return this.current ? this.current.xp || 0 : 0;
+  }
+
+  // Resolve the current XP into { level, xpInto, xpForNext, progress }.
+  getLevel() {
+    return getLevelFromXp(this.xp);
+  }
+
+  // Award XP, persist, and report whether the player levelled up.
+  // Returns { leveledUp:boolean, newLevel:number, xp:number }.
+  addXp(amount) {
+    if (!this.current) return { leveledUp: false, newLevel: 1, xp: 0 };
+    const add = Math.max(0, Math.round(amount || 0));
+    const before = getLevelFromXp(this.current.xp || 0).level;
+    this.current.xp = (this.current.xp || 0) + add;
+    const after = getLevelFromXp(this.current.xp).level;
+    this.save();
+    return { leveledUp: after > before, newLevel: after, xp: this.current.xp };
   }
 
   ownsCar(carId) {

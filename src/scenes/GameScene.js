@@ -12,6 +12,8 @@ import { InputController, resetTouch } from '../game/Input.js';
 import { SkidMarks } from '../game/SkidMarks.js';
 import { makeSoftCircle } from '../core/neon.js';
 import { applyGameplayFX, setSpeedFX, pulseBloom } from '../core/fx.js';
+import { fmt } from '../ui/widgets.js';
+import { xpForRun } from '../core/leveling.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -225,6 +227,7 @@ export default class GameScene extends Phaser.Scene {
     c.vx += Math.cos(c.heading) * TUNING.rampLaunch;
     c.vy += Math.sin(c.heading) * TUNING.rampLaunch;
     c.boost = Math.max(c.boost, 0.5);
+    this._jumpFromIdx = this.track._lastIdx; // record take-off spot for shortcut detection
     Audio.sfx('combo');
     pulseBloom(this.fx, 1.5);
   }
@@ -234,6 +237,23 @@ export default class GameScene extends Phaser.Scene {
     Audio.sfx('combo');
     this.smoke.emitParticleAt(this.car.x, this.car.y, 10);
     if (Save.settings.shake) this.cameras.main.shake(120, 0.006);
+
+    // SHORTCUT: a jump that skips a big chunk of track (e.g. leaping the hairpins)
+    // pays a bonus scaled by the current drift multiplier.
+    if (this._jumpFromIdx != null) {
+      const landed = this.track._nearest(this.car.x, this.car.y).index;
+      const skipped = landed - this._jumpFromIdx;
+      this._jumpFromIdx = null;
+      if (skipped > TUNING.shortcutMinSkip && this.state === 'play') {
+        const m = this.scorer.multiplier;
+        const bonus = Math.round(Phaser.Math.Clamp(TUNING.shortcutBase * m, TUNING.shortcutMin, TUNING.shortcutMax));
+        this.scorer.addBonus(bonus);
+        this._popup(this.car.x, this.car.y - 34, 'SHORTCUT  +' + fmt(bonus), COLORS.lime);
+        pulseBloom(this.fx, 2.4);
+        Audio.sfx('win');
+        if (Save.settings.shake) this.cameras.main.shake(180, 0.01);
+      }
+    }
   }
 
   _popup(x, y, text, color) {
@@ -481,9 +501,25 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---- End ---------------------------------------------------------------
+  // A swirling portal at the finish — the car launches off the final ramp and
+  // "flies through" as the screen fades to the results.
+  _portalFx() {
+    makeSoftCircle(this, 'portal_a', 256, COLORS.purple);
+    makeSoftCircle(this, 'portal_b', 256, COLORS.cyan);
+    const glow = this.add.image(this.car.x, this.car.y, 'portal_a')
+      .setDepth(40).setBlendMode(Phaser.BlendModes.ADD).setScale(0.2).setAlpha(0.9);
+    this.tweens.add({ targets: glow, scale: 3.4, alpha: 0, duration: 640, ease: 'Cubic.out', onComplete: () => glow.destroy() });
+    const ring = this.add.image(this.car.x, this.car.y, 'portal_b')
+      .setDepth(41).setBlendMode(Phaser.BlendModes.ADD).setScale(0.1).setAlpha(1);
+    this.tweens.add({ targets: ring, scale: 2.6, alpha: 0, duration: 540, ease: 'Cubic.out', onComplete: () => ring.destroy() });
+    pulseBloom(this.fx, 3);
+    if (Save.settings.shake) this.cameras.main.shake(220, 0.012);
+  }
+
   _win() {
     if (this.state === 'over') return;
     this.state = 'over';
+    this._portalFx();
     pulseBloom(this.fx, 2.4);
     Audio.stopEngine();
     Audio.sfx('win');
@@ -520,6 +556,16 @@ export default class GameScene extends Phaser.Scene {
     this._finishing = true;
     Save.addCash(result.cash);
     Save.recordLevel(this.levelId, { cleared: result.cleared, stars: result.stars, score: result.score });
+    // XP from the run (score, cash, stars, multiplier, clear) feeds the player level.
+    try {
+      const gained = xpForRun({
+        score: result.score, cash: result.cash, cleared: result.cleared,
+        stars: result.stars, bestMultiplier: result.bestMultiplier,
+      });
+      const lv = Save.addXp(gained);
+      result.xpGained = gained;
+      result.leveledUp = lv && lv.leveledUp ? lv.newLevel : 0;
+    } catch (_) {}
     this.scene.stop('HUDScene');
     if (Save.settings.shake) {
       this.cameras.main.flash(result.cleared ? 220 : 120, result.cleared ? 60 : 255, result.cleared ? 255 : 60, 120);

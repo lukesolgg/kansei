@@ -56,6 +56,7 @@ export class CityDecor {
 
     this._drawGroundDetail();
     this._buildBuildings();
+    this._drawRoadsideProps();
     this._drawLampPosts();
   }
 
@@ -198,6 +199,9 @@ export class CityDecor {
           c,
           side,
           isLandmark,
+          // Far (screen-north) buildings show their street face; near (south)
+          // ones show just their roofs — like looking up the street.
+          isNorth: n.y * side < 0,
         });
 
         d += spacing;
@@ -235,21 +239,32 @@ export class CityDecor {
     const outline = mixColor(tone, COLORS.bgDeep, 0.6); // hard pixel outline
     const sign = SIGN[intRand(r, 0, SIGN.length - 1)];
 
-    // Pseudo-3D "height": how far the roof is offset further away from road.
-    const rise = rangeRand(r, 16, 46);
-
     // ---- (a) Drop shadow toward the road (ground plane, darkest). ----
     const shadowDepth = rangeRand(r, 16, 30);
     gShadow.fillStyle(COLORS.bgDeep, 0.5);
     gShadow.fillPoints(rect(-halfA - 4, -halfN - shadowDepth, halfA + 4, -halfN + 2), true, true);
 
+    if (!o.isNorth) {
+      // NEAR (screen-south) side: you're looking at the BACKS of these, so just a
+      // flat concrete roof top-down with clutter — chimneys / AC / water tank.
+      gTop.fillStyle(ROOF, 1);
+      gTop.fillPoints(rect(-halfA, -halfN, halfA, halfN), true, true);
+      gTop.fillStyle(mixColor(ROOF, COLORS.white, 0.06), 0.5);
+      gTop.fillPoints(rect(-halfA + 4, -halfN + 4, halfA - 4, -halfN + o.depth * 0.4), true, true);
+      gTop.lineStyle(2, mixColor(ROOF, COLORS.bgDeep, 0.55), 1);
+      gTop.strokePoints([pt(-halfA, -halfN), pt(halfA, -halfN), pt(halfA, halfN), pt(-halfA, halfN)], true, true);
+      this._drawRoofClutter(gTop, pt, halfA, -halfN, o.depth - 6, r);
+      return;
+    }
+
+    // FAR (screen-north) side: the street face you actually look at.
     // ---- Building face: solid muted wall, lighter up top, darker shopfront base. ----
     gFace.fillStyle(faceBase, 1);
     gFace.fillPoints(rect(-halfA, -halfN, halfA, halfN), true, true);
     gFace.fillStyle(faceLight, 0.5);
     gFace.fillPoints(rect(-halfA, halfN - o.depth * 0.5, halfA, halfN), true, true);
     gFace.fillStyle(faceDark, 1);
-    gFace.fillPoints(rect(-halfA, -halfN, halfA, -halfN + o.depth * 0.2), true, true);
+    gFace.fillPoints(rect(-halfA, -halfN, halfA, -halfN + o.depth * 0.22), true, true);
 
     // Hard pixel outline (no neon glow).
     const outlineRing = [pt(-halfA, -halfN), pt(halfA, -halfN), pt(halfA, halfN), pt(-halfA, halfN)];
@@ -259,7 +274,11 @@ export class CityDecor {
     // ---- Lit window grid (warm/cool/dark apartment windows). ----
     this._drawWindows(gFace, pt, halfA, halfN, o.depth, r);
 
-    // ---- (b) Concrete roof pushed away from the road, with rooftop clutter. ----
+    // ---- Ground-floor SHOPFRONT facing the street (awning, lit window, produce). ----
+    this._drawShopfront(gFace, pt, halfA, halfN, o.depth, sign, r);
+
+    // ---- Concrete roof pushed away from the road (behind), with rooftop clutter. ----
+    const rise = rangeRand(r, 16, 46);
     gTop.fillStyle(ROOF, 1);
     gTop.fillPoints(rect(-halfA + 2, halfN, halfA - 2, halfN + rise), true, true);
     gTop.lineStyle(2, mixColor(ROOF, COLORS.bgDeep, 0.5), 1);
@@ -272,6 +291,34 @@ export class CityDecor {
 
     // ---- Occasional muted shop sign / billboard. ----
     this._drawSignage(gTop, pt, halfA, halfN, rise, sign, r, o.isLandmark);
+  }
+
+  // Ground-floor shopfront on a street-facing building: an awning stripe, a warm
+  // lit shop window, and the occasional crate of produce on the kerb.
+  _drawShopfront(gFace, pt, halfA, halfN, depth, sign, r) {
+    const ln0 = -halfN + 5; // street edge of the face
+    const winH = depth * 0.13;
+    // warm-lit shop window
+    gFace.fillStyle(WIN_WARM, 0.85);
+    gFace.fillPoints([pt(-halfA + 8, ln0), pt(halfA - 8, ln0), pt(halfA - 8, ln0 + winH), pt(-halfA + 8, ln0 + winH)], true, true);
+    gFace.lineStyle(1.5, mixColor(WIN_WARM, COLORS.bgDeep, 0.5), 1);
+    gFace.strokePoints([pt(-halfA + 8, ln0), pt(halfA - 8, ln0), pt(halfA - 8, ln0 + winH), pt(-halfA + 8, ln0 + winH)], true, true);
+    // awning stripe just above the window (toward the road)
+    gFace.fillStyle(sign, 0.92);
+    gFace.fillPoints([pt(-halfA + 4, ln0 - 7), pt(halfA - 4, ln0 - 7), pt(halfA - 4, ln0), pt(-halfA + 4, ln0)], true, true);
+    // a few crates of produce on the kerb in front, sometimes
+    if (r() < 0.45) {
+      const fruit = [0xe0594a, 0xf0a93a, 0x6fb24a, 0xe6c84a, 0xd86a9a];
+      const n = intRand(r, 2, 4);
+      for (let i = 0; i < n; i++) {
+        const la = -halfA + 14 + (i + 0.5) * ((halfA * 2 - 28) / n);
+        const ln = ln0 - 11;
+        gFace.fillStyle(mixColor(0x2a2c33, 0x000000, 0.2), 1); // crate
+        gFace.fillPoints([pt(la - 5, ln), pt(la + 5, ln), pt(la + 5, ln + 4), pt(la - 5, ln + 4)], true, true);
+        gFace.fillStyle(fruit[intRand(r, 0, fruit.length - 1)], 1); // produce mound
+        gFace.fillPoints([pt(la - 4, ln - 2), pt(la + 4, ln - 2), pt(la + 4, ln), pt(la - 4, ln)], true, true);
+      }
+    }
   }
 
   // Grid of warm/cool/dark apartment windows on the upper floors (above the
@@ -428,6 +475,68 @@ export class CityDecor {
         gPost.fillStyle(COLORS.lamp, 1);
         gPost.fillCircle(headX, headY, 3.5);
         d += rangeRand(this._rnd, 160, 240);
+      }
+    }
+  }
+
+  // Roadside props in the verge between road and buildings: parked cars, a bus
+  // stop, a taxi rank, motorbike parking. Oriented along the road; skipped on
+  // loop-back stretches so they never land on another part of the track.
+  _drawRoadsideProps() {
+    const g = this._g(-8);
+    const r = this._rnd;
+    const carCols = [0x8a3b3b, 0x3b5a8a, 0x6a6a72, 0x8a7a3b, 0x3b6a5a, 0x7a3b6a];
+    for (const side of [1, -1]) {
+      let d = rangeRand(r, 150, 320);
+      while (d < this.total - 60) {
+        const c = this.track.pointAtDistance(d);
+        const n = unit(c.nx, c.ny);
+        const ox = n.x * side;
+        const oy = n.y * side; // outward
+        const tx = -n.y * side;
+        const ty = n.x * side; // along road
+        const off = this.half + 22;
+        const cx = c.x + ox * off;
+        const cy = c.y + oy * off;
+        if (this._roadDist(cx, cy) < this.half - 2) {
+          d += rangeRand(r, 90, 150);
+          continue;
+        }
+        const pp = (la, ln) => ({ x: cx + tx * la + ox * ln, y: cy + ty * la + oy * ln });
+        const box = (la0, ln0, la1, ln1, col, a) => {
+          g.fillStyle(col, a == null ? 1 : a);
+          g.fillPoints([pp(la0, ln0), pp(la1, ln0), pp(la1, ln1), pp(la0, ln1)], true, true);
+        };
+        const roll = r();
+        if (roll < 0.52) {
+          // parked car (parallel to the kerb)
+          const col = carCols[intRand(r, 0, carCols.length - 1)];
+          box(-13, -6, 13, 6, col);
+          box(-7, -4.5, 8, 4.5, mixColor(col, COLORS.white, 0.2)); // cabin
+          box(9, -4, 12, -1, 0xffe089); // headlight
+          box(-12, 1.5, -9, 5, 0xd8483c); // taillight
+        } else if (roll < 0.72) {
+          // bus stop shelter + sign
+          box(-16, 1, 16, 4, 0x4a4e57); // bench
+          box(-16, 4, 16, 8, mixColor(0x4a4e57, COLORS.white, 0.14)); // roof
+          g.lineStyle(2, 0x2b2d33, 1);
+          g.strokePoints([pp(-15, 1), pp(-15, 8)], false, false); // pole
+          box(-4, 8, 4, 12, 0x3b6aa0); // blue sign
+        } else if (roll < 0.87) {
+          // taxi rank: a parked taxi + a rank sign
+          box(8, -5, 22, 4, 0xe0b53a);
+          box(11, -3.5, 19, 3.5, 0x2a2c33); // roof sign / cabin
+          box(-12, 2, -8, 12, 0x4a4e57); // post
+          box(-16, 12, -4, 16, 0xe0b53a); // sign
+        } else {
+          // motorbike parking: a short row of bikes
+          const n2 = intRand(r, 2, 3);
+          for (let i = 0; i < n2; i++) {
+            const la = -9 + i * 9;
+            box(la - 3, -3, la + 3, 3, mixColor(carCols[intRand(r, 0, carCols.length - 1)], COLORS.bgDeep, 0.15));
+          }
+        }
+        d += rangeRand(r, 220, 360);
       }
     }
   }
