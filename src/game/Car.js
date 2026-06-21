@@ -211,13 +211,15 @@ export class Car {
     this.vx = cos * this.forwardSpeed + latX * keep;
     this.vy = sin * this.forwardSpeed + latY * keep;
 
-    // --- Drift steering kick ---
-    // While sliding, A/D don't just rotate the car — they shove it bodily toward
-    // that side, so the drift bites and throws the car wide.
+    // --- Drift steering: rear wash-out (real counter-steer physics) ---
+    // Steering into the slide angles the nose that way (handled above), but the
+    // car's body washes OUT the OPPOSITE way — turn in to the left and the rear
+    // steps out to the right, so the car points into the corner yet slides wide.
+    // You then counter-steer to hold it. (kick is NEGATED vs. the steer side.)
     if (this.isDrifting && Math.abs(steer) > 0.05) {
       const rx = -sin; // car's right direction (+steer = D)
       const ry = cos;
-      const kick = steer * TUNING.driftSteerKick * this.speed * dt;
+      const kick = -steer * TUNING.driftSteerKick * this.speed * dt;
       this.vx += rx * kick;
       this.vy += ry * kick;
     }
