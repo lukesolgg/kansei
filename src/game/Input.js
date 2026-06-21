@@ -11,10 +11,11 @@ export const TOUCH = {
   left: false,
   right: false,
   handbrake: false,
+  boost: false,
 };
 
 export function resetTouch() {
-  TOUCH.throttle = TOUCH.brake = TOUCH.left = TOUCH.right = TOUCH.handbrake = false;
+  TOUCH.throttle = TOUCH.brake = TOUCH.left = TOUCH.right = TOUCH.handbrake = TOUCH.boost = false;
 }
 
 function approach(cur, target, maxStep) {
@@ -79,7 +80,11 @@ export class InputController {
 
     let thrTarget = k.up.isDown || k.upArrow.isDown || TOUCH.throttle ? 1 : 0;
     let brkTarget = k.down.isDown || k.downArrow.isDown || TOUCH.brake ? 1 : 0;
-    let hb = k.space.isDown || k.shift.isDown || TOUCH.handbrake;
+    // Drift/handbrake on SHIFT; boost released with SPACE — so you can drift AND
+    // fire the mini-turbo at the same time. (Ctrl can't be the drift key: Ctrl+W,
+    // with W as throttle, closes the browser tab.)
+    let hb = k.shift.isDown || TOUCH.handbrake;
+    let boost = k.space.isDown || TOUCH.boost;
 
     if (pad) {
       const ax = pad.axes.length ? pad.axes[0].getValue() : 0;
@@ -94,8 +99,9 @@ export class InputController {
       if (rt > 0.04) { thrTarget = Math.max(thrTarget, rt); this.usingGamepad = true; }
       if (lt > 0.04) brkTarget = Math.max(brkTarget, lt);
       if (pad.A) thrTarget = 1; // A as a digital throttle too
-      // Handbrake: B, right bumper, or left bumper.
-      if (pad.B || (pad.buttons[5] && pad.buttons[5].pressed) || (pad.buttons[4] && pad.buttons[4].pressed)) hb = true;
+      // Handbrake: B or left bumper. Boost: right bumper or X.
+      if (pad.B || (pad.buttons[4] && pad.buttons[4].pressed)) hb = true;
+      if (pad.X || (pad.buttons[5] && pad.buttons[5].pressed)) boost = true;
     }
 
     steerTarget = Phaser.Math.Clamp(steerTarget, -1, 1);
@@ -124,6 +130,7 @@ export class InputController {
       steer: this.steer,
       steerRaw: steerTarget,
       handbrake: hb,
+      boost,
     };
   }
 

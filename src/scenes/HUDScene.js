@@ -84,10 +84,11 @@ export default class HUDScene extends Phaser.Scene {
     // Steering (left side)
     mk(96, H - 110, 52, '‹', COLORS.cyan, 'left');
     mk(220, H - 110, 52, '›', COLORS.cyan, 'right');
-    // Throttle / brake / handbrake (right side)
+    // Throttle / brake / handbrake (drift) / boost (right side)
     mk(W - 96, H - 200, 56, '▲', COLORS.lime, 'throttle');
     mk(W - 96, H - 78, 50, '▼', COLORS.orange, 'brake');
     mk(W - 224, H - 120, 52, '✋', COLORS.pink, 'handbrake');
+    mk(W - 224, H - 244, 48, '⚡', COLORS.amber, 'boost');
   }
 
   update() {

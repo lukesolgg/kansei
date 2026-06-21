@@ -100,6 +100,7 @@ export class Car {
     this._steerSign = 0; // last significant steer direction (for flick detection)
     this._sinceFlick = 0; // seconds since the last steer reversal
     this._prevHandbrake = false;
+    this._prevBoost = false;
   }
 
   get x() {
@@ -137,6 +138,7 @@ export class Car {
     const brake = input.brake;
     const steer = input.steer;
     const handbrake = input.handbrake;
+    const boostInput = !!input.boost;
 
     let cos = Math.cos(this.heading);
     let sin = Math.sin(this.heading);
@@ -292,15 +294,16 @@ export class Car {
       this.vy += sin * wa * dt;
     }
 
-    // --- Drift-charge → boost (mini-turbo on release) ---
+    // --- Drift-charge builds while sliding; SPACE fires the mini-turbo so you can
+    // keep drifting AND boost at once. Charge persists (slow decay) until spent. ---
     if (handbrake && this.isDrifting && this.speed > 100) {
       this.driftCharge = Math.min(TUNING.driftBoostChargeMax, this.driftCharge + dt);
     } else if (!handbrake) {
-      this.driftCharge = Math.max(0, this.driftCharge - dt * 1.5);
+      this.driftCharge = Math.max(0, this.driftCharge - dt * 0.6);
     }
     this.boostFired = 0;
     this.perfectRelease = false;
-    if (this._prevHandbrake && !handbrake && this.driftCharge > TUNING.driftBoostMin) {
+    if (boostInput && !this._prevBoost && this.driftCharge > TUNING.driftBoostMin) {
       const chargeFrac = this.driftCharge / TUNING.driftBoostChargeMax;
       const perfect = Math.abs(chargeFrac - TUNING.perfectReleaseFrac) < TUNING.perfectReleaseWindow;
       const amt = this.driftCharge * (perfect ? 1 + TUNING.perfectReleaseBonus : 1);
@@ -313,6 +316,7 @@ export class Car {
       this.driftCharge = 0;
     }
     this.driftChargeFrac = Math.min(1, this.driftCharge / TUNING.driftBoostChargeMax);
+    this._prevBoost = boostInput;
     this._prevHandbrake = handbrake;
     if (this.boost > 0) this.boost = Math.max(0, this.boost - TUNING.driftBoostDecay * dt);
 

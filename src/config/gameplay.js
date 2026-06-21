@@ -16,11 +16,11 @@ export const TUNING = {
   // Higher = sticks; lower = slides. Lowered for an icy, slidey base feel.
   gripKill: 7.5, // base lateral grip — HIGH, so normal driving is grippy; drift comes from the handbrake
   handbrakeGripMul: 0.3, // grip while drifting: low enough to slide, high enough to carve a corner
-  driftTurnRate: 6.0, // how fast the nose eases to the target drift angle (= flip/feint speed)
+  driftTurnRate: 5.5, // how fast the nose eases to the target drift angle (= flip/feint speed); lower = smoother
   coastDrag: 0.85, // extra drag off the throttle — lifting W slows you (engine braking)
   driftAngleForSlide: 0.16, // rad — beyond this heading/velocity gap you're "drifting"
   minDriftSpeed: 70,
-  spinDriftAngle: 1.2, // rad (~69°) — wind past this and you've spun out; combo breaks
+  spinDriftAngle: 1.4, // rad (~80°) — wind past this and you've spun out; combo breaks (raised for headroom so long drifts don't auto-spin)
 
   // ---- Input feel (analog smoothing, units toward target per second) -----
   steerSmoothing: 7.0,
@@ -47,10 +47,10 @@ export const TUNING = {
 
   // Hold full throttle in a drift too long and the angle WINDS UP past control into
   // a spin — so there's a balance point: feather W to hold a clean drift.
-  driftWindThrottle: 0.65, // throttle above this winds the drift up
-  driftWindRate: 0.8, // extra angle (rad) gained per second at full throttle
-  driftWindDecay: 2.2, // wind-down per second otherwise
-  driftWindMax: 1.8, // pin full throttle ~1.5s and the wind-up tips you past the spin point
+  driftWindThrottle: 0.72, // throttle above this winds the drift up (raised — only near-full throttle)
+  driftWindRate: 0.32, // extra angle (rad) gained per second at full throttle (gentle, so long drifts stay stable)
+  driftWindDecay: 2.6, // wind-down per second otherwise (faster relief — easing off or switching settles it)
+  driftWindMax: 0.55, // capped low so a sustained drift won't auto-spin; only a huge over-commit reaches the spin point
 
   // ---- Drift = speed (the reward loop) -----------------------------------
   // A clean slide PULLS the car forward and lifts the top-speed cap, so the way
