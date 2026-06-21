@@ -177,6 +177,64 @@ class AudioBus {
         this._blip(900, 0.06, 'square', 0.2, t + 0.05);
         this._blip(1200, 0.1, 'square', 0.2, t + 0.1);
         break;
+
+      // --- Drift-mechanic SFX --------------------------------------------
+      case 'boost': {
+        // Turbo blow-off WHOOSH: a downward-swept bandpassed noise burst (the
+        // "pssh" of the valve) layered with a quick rising tone — the forward
+        // surge. Punchy and over in ~0.35s.
+        this._whoosh(t, 3400, 900, 0.16, 0.34); // hiss sweeps high->low
+        this._sweepTone(t, 240, 520, 0.16, 0.22, 'sawtooth'); // surge up
+        this._blip(660, 0.05, 'triangle', 0.1, t + 0.02); // tiny pop of attack
+        break;
+      }
+      case 'perfect': {
+        // Clean ascending chime — a perfectly-timed release. Three bright sine
+        // partials climbing, each with a shimmering octave on top.
+        [784, 1047, 1568].forEach((f, i) => {
+          const w = t + i * 0.07;
+          this._blip(f, 0.22, 'sine', 0.2, w);
+          this._blip(f * 2, 0.16, 'sine', 0.07, w); // airy octave sparkle
+        });
+        break;
+      }
+      case 'lap': {
+        // Lap-complete flourish: a quick bell-like ascending arpeggio with a
+        // ringing FM-ish triangle bell on the final note.
+        [523, 659, 784].forEach((f, i) =>
+          this._blip(f, 0.16, 'triangle', 0.2, t + i * 0.06),
+        );
+        this._bell(1047, t + 0.18, 0.18, 0.5); // resonant top bell
+        break;
+      }
+      case 'shortcut': {
+        // Big bonus stinger for nailing a jump: a bright power-chord-ish stab
+        // (root + fifth + octave) with a fast noise "whip" to give it impact.
+        this._whoosh(t, 1200, 5200, 0.1, 0.12); // short upward whip
+        [392, 587, 784, 1175].forEach((f) =>
+          this._blip(f, 0.34, 'sawtooth', 0.14, t + 0.02),
+        );
+        this._bell(1568, t + 0.04, 0.22, 0.55); // glittering top
+        break;
+      }
+      case 'flick': {
+        // VERY subtle tyre chirp/tick for a steer-pump flick. Can fire several
+        // times a second, so it's quiet, short (~0.05s) and slightly randomised
+        // in pitch so repeats don't sound mechanical.
+        const c = 2200 + Math.random() * 900;
+        this._noise(0.05, c, 0.04, t, 'bandpass');
+        break;
+      }
+      case 'levelup': {
+        // Triumphant short fanfare: a rising major triad run capped by an
+        // octave hit, with a soft bell shimmer over the top.
+        [392, 523, 659, 784].forEach((f, i) =>
+          this._blip(f, 0.18, 'square', 0.16, t + i * 0.08),
+        );
+        this._blip(1047, 0.3, 'triangle', 0.2, t + 0.32); // resolving octave
+        this._bell(1568, t + 0.34, 0.2, 0.5); // sparkle
+        break;
+      }
     }
   }
 
@@ -212,6 +270,70 @@ class AudioBus {
     g.connect(this.sfxGain);
     src.start(when);
     src.stop(when + dur + 0.02);
+  }
+
+  // A bandpassed-noise "whoosh": the band sweeps fromHz -> toHz over the
+  // duration (set toHz < fromHz for a turbo blow-off "pssh", toHz > fromHz for
+  // an upward whip). Routes through the sfx bus like the other one-shots.
+  _whoosh(when, fromHz, toHz, vol, dur) {
+    if (!this.ctx) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer || this._makeNoiseBuffer(dur + 0.1);
+    src.loop = true;
+    const filt = this.ctx.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.Q.value = 1.4;
+    filt.frequency.setValueAtTime(fromHz, when);
+    filt.frequency.exponentialRampToValueAtTime(Math.max(40, toHz), when + dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(vol, when + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    src.connect(filt);
+    filt.connect(g);
+    g.connect(this.sfxGain);
+    src.start(when);
+    src.stop(when + dur + 0.04);
+  }
+
+  // A short pitch-swept tone (the "surge" voice). freq glides fromHz -> toHz.
+  _sweepTone(when, fromHz, toHz, vol, dur, type = 'sawtooth') {
+    if (!this.ctx) return;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(fromHz, when);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, toHz), when + dur);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(vol, when + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    o.connect(g);
+    g.connect(this.sfxGain);
+    o.start(when);
+    o.stop(when + dur + 0.02);
+  }
+
+  // A ringing bell tone: a sine carrier with a bright triangle partial a
+  // perfect-fifth-ish above, longer decay = a shimmering chime/sparkle.
+  _bell(freq, when, vol, dur) {
+    if (!this.ctx) return;
+    const o = this.ctx.createOscillator();
+    const o2 = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'sine';
+    o2.type = 'triangle';
+    o.frequency.setValueAtTime(freq, when);
+    o2.frequency.setValueAtTime(freq * 2.01, when); // inharmonic partial = bell-like
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(vol, when + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    o.connect(g);
+    o2.connect(g);
+    g.connect(this.sfxGain);
+    o.start(when);
+    o2.start(when);
+    o.stop(when + dur + 0.02);
+    o2.stop(when + dur + 0.02);
   }
 
   // ---- Engine (continuous, reactive) --------------------------------------

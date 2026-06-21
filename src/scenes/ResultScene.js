@@ -97,6 +97,18 @@ export default class ResultScene extends Phaser.Scene {
       .setShadow(0, 0, hex(COLORS.lime), 16, false, true);
     this.add.text(W / 2, 582, `Balance: $${fmt(Save.cash)}`, labelStyle(20, COLORS.textDim)).setOrigin(0.5);
 
+    // XP gained + level-up fanfare
+    if (r.xpGained) {
+      const up = r.leveledUp;
+      const txt = up ? `+ ${fmt(r.xpGained)} XP   ·   LEVEL UP → LV ${up}` : `+ ${fmt(r.xpGained)} XP`;
+      const xpT = this.add.text(W / 2, 610, txt, labelStyle(18, up ? COLORS.amber : COLORS.cyan)).setOrigin(0.5);
+      if (up) {
+        xpT.setScale(0.6);
+        this.tweens.add({ targets: xpT, scale: 1, ease: 'Back.out', duration: 420, delay: 380 });
+        this.time.delayedCall(460, () => { try { Audio.sfx('levelup'); } catch (_) {} });
+      }
+    }
+
     // Buttons — RETRY / NEXT / GARAGE / STAGES. NEXT is always shown but greyed
     // out until the level is actually cleared.
     const next = nextLevelId(this.levelId);

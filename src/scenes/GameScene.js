@@ -260,7 +260,7 @@ export default class GameScene extends Phaser.Scene {
         this.scorer.addBonus(bonus);
         this._popup(this.car.x, this.car.y - 34, 'SHORTCUT  +' + fmt(bonus), COLORS.lime);
         pulseBloom(this.fx, 2.4);
-        Audio.sfx('win');
+        Audio.sfx('shortcut');
         if (Save.settings.shake) this.cameras.main.shake(180, 0.01);
       }
     }
@@ -315,7 +315,10 @@ export default class GameScene extends Phaser.Scene {
     this.car.update(dt, input, hasFuel);
     if (this.car.justLanded) this._onLand();
     // Tire chirp puff each time a flick (steer pump) lands, for feedback.
-    if (this.car.flickFired) this.smoke.emitParticleAt(this.car.x, this.car.y, 3);
+    if (this.car.flickFired) {
+      this.smoke.emitParticleAt(this.car.x, this.car.y, 3);
+      Audio.sfx('flick');
+    }
 
     // Process pickups touched during the just-finished physics step (safe now).
     if (this._pendingPickups.length) {
@@ -342,7 +345,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.car.perfectRelease) {
       this._popup(this.car.x, this.car.y - 30, 'PERFECT!', COLORS.amber);
       pulseBloom(this.fx, 2.2);
-      Audio.sfx('combo');
+      Audio.sfx('perfect');
     }
     // Spin-recovery nudge
     if (this.car.recoverFired) {
@@ -385,7 +388,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onBoost(power) {
-    Audio.sfx('combo');
+    Audio.sfx('boost');
     this.smoke.emitParticleAt(this.car.x, this.car.y, 8);
     pulseBloom(this.fx, 1.5);
     if (Save.settings.shake) this.cameras.main.shake(110, 0.005 * power);
@@ -495,7 +498,7 @@ export default class GameScene extends Phaser.Scene {
     this.fuel = Math.min(this.fuelMax, this.fuel + this.fuelMax * 0.3);
     this._popup(this.car.x, this.car.y - 32, 'LAP ' + this.laps, COLORS.cyan);
     pulseBloom(this.fx, 2);
-    Audio.sfx('win');
+    Audio.sfx('lap');
   }
 
   _syncHud() {
