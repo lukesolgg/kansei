@@ -138,6 +138,7 @@ export class CityDecor {
 
     const p = this.path;
     let landmarkBudget = 4; // a handful of standout billboards
+    const placed = []; // { x, y, r } of placed footprints, to prevent bunching
 
     for (const side of [1, -1]) {
       // March along the track by arc length.
@@ -181,6 +182,22 @@ export class CityDecor {
           d += rangeRand(this._rnd, 80, 140);
           continue;
         }
+
+        // Reject if it would overlap an already-placed building (stops the bunching
+        // on tight inside corners). Treat footprints as bounding circles.
+        const rr = Math.max(along, depth) * 0.42;
+        let bunched = false;
+        for (const q of placed) {
+          if ((fcx - q.x) ** 2 + (fcy - q.y) ** 2 < (rr + q.r) ** 2) {
+            bunched = true;
+            break;
+          }
+        }
+        if (bunched) {
+          d += rangeRand(this._rnd, 70, 120);
+          continue;
+        }
+        placed.push({ x: fcx, y: fcy, r: rr });
 
         // Decide if this is a landmark billboard tower.
         const isLandmark = landmarkBudget > 0 && this._rnd() < 0.16;

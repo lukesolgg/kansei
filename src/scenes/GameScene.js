@@ -115,7 +115,7 @@ export default class GameScene extends Phaser.Scene {
   _blankHud() {
     return {
       score: 0, multiplier: 1, driftMult: 1, speedMult: 1, chain: 0, driftActive: false,
-      fuel: this.fuel / this.fuelMax, fuelLow: false, outOfFuel: false,
+      fuel: this.fuel / this.fuelMax, fuelLow: false, outOfFuel: false, boostCharge: 0,
       speed: 0, progress: 0, cash: 0, level: this.level,
       paused: false, state: 'intro',
     };
@@ -328,6 +328,11 @@ export default class GameScene extends Phaser.Scene {
 
     // Mini-turbo release
     if (this.car.boostFired > 0) this._onBoost(this.car.boostFired);
+    if (this.car.perfectRelease) {
+      this._popup(this.car.x, this.car.y - 30, 'PERFECT!', COLORS.amber);
+      pulseBloom(this.fx, 2.2);
+      Audio.sfx('combo');
+    }
     // Spin-recovery nudge
     if (this.car.recoverFired) {
       Audio.sfx('combo');
@@ -474,6 +479,7 @@ export default class GameScene extends Phaser.Scene {
     h.fuel = this.fuel / this.fuelMax;
     h.fuelLow = h.fuel <= TUNING.lowFuelWarn;
     h.outOfFuel = this.fuel <= 0;
+    h.boostCharge = this.car.driftChargeFrac;
     h.speed = Math.round(this.car.speed * 0.3); // arcade MPH
     h.progress = this.track.progressFrac();
     h.cash = this.cashCollected;

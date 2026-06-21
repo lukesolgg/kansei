@@ -47,17 +47,21 @@ function pathLength(pts) {
 // --- The GENTEN layout (base roadWidth before the global x1.25). ---
 const ROAD_BASE = 320;
 const EFF_HALF = (ROAD_BASE * 1.25) / 2;
+const JUMP_SEG = 7; // segment index of the jump straight
 const segments = [
-  ['s', 600],                 // 1. intro straight (lengthened)
-  ['r', 95, 360], ['r', 40, 230], // 2. big right, wide then tighter (~135deg)
-  ['l', 180, 300],            // 3. big left horseshoe
-  ['s', 780],                 // 4. straight WITH the jump (segment index 4)
-  ['r', 180, 230],            // 5. hairpin 1 (right)
-  ['s', 320],                 // 6. connector
-  ['l', 180, 230],            // 7. hairpin 2 (left) — switchback
-  ['s', 300],                 // 8. connector
-  ['r', 180, 460],            // 9. massive semicircle (big drift)
-  ['s', 380], ['l', 85, 320], ['s', 320], ['r', 70, 300], ['s', 440], // 10. flowing ending -> finish
+  ['s', 600], // 0  intro straight (entry speed)
+  ['r', 90, 480], // 1  fast right sweeper (hold angle)
+  ['s', 300], // 2  short link
+  ['l', 180, 285], // 3  left hairpin (the key element)
+  ['s', 520], // 4  diagonal straight (variety)
+  ['r', 70, 360], // 5  right sweeper into the esses
+  ['l', 90, 280], // 6  left transition (flick)
+  ['s', 700], // 7  JUMP straight (can cut the next corner)
+  ['r', 180, 285], // 8  right hairpin
+  ['s', 380], // 9  link
+  ['l', 160, 460], // 10 massive left sweeper (big drift)
+  ['r', 60, 320], // 11 right kink
+  ['s', 400], ['l', 80, 300], ['s', 360], ['r', 50, 340], ['s', 500], // 12+ flowing run to finish
 ];
 
 const { pts, bounds } = buildPath(segments);
@@ -78,8 +82,7 @@ for (let i = 0; i < pts.length; i++) {
 console.log('total length:', Math.round(total), ' road width:', Math.round(EFF_HALF * 2));
 console.log('overlap threshold (<):', Math.round(THRESH), ' min separation:', Math.round(minSep), 'at', worst);
 console.log('OVERLAP HITS:', hits);
-// jump on the mid-point of segment index 4 (the 5th seg = the long jump straight)
-const seg4Start = bounds[3];
-const seg4Mid = (bounds[3] + bounds[4]) / 2;
-console.log('seg4 (jump straight): start', Math.round(seg4Start), ' end', Math.round(bounds[4]), ' mid', Math.round(seg4Mid));
-console.log('=> jumpFrac (mid of seg4):', (seg4Mid / total).toFixed(3));
+// jump on the mid-point of the JUMP_SEG straight
+const jMid = (bounds[JUMP_SEG - 1] + bounds[JUMP_SEG]) / 2;
+console.log('jump straight: start', Math.round(bounds[JUMP_SEG - 1]), ' end', Math.round(bounds[JUMP_SEG]), ' mid', Math.round(jMid));
+console.log('=> jumpFrac (mid of jump straight):', (jMid / total).toFixed(3));

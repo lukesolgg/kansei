@@ -88,6 +88,11 @@ export const TUNING = {
   driftBoostPower: 78, // forward px/s added per charge-second on release
   driftBoostDecay: 1.1, // boost level bled off per second
   driftBoostSpeedBonus: 0.42, // boost lifts the speed cap by up to this fraction
+  // Perfect release: let go of the handbrake near 90% charge (the red line on the
+  // boost bar) for an extra kick — rewards timing the mini-turbo.
+  perfectReleaseFrac: 0.9,
+  perfectReleaseWindow: 0.09, // how close to 90% counts as perfect
+  perfectReleaseBonus: 0.45, // extra boost (fraction) on a perfect release
 
   // ---- Hit-stop / slow-mo (time-scale juice) ----------------------------
   hitStopScale: 0.05, // near-freeze on impact

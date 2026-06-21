@@ -93,22 +93,27 @@ const RAW = [
   {
     id: 'genten', zone: 'docks', name: 'Genten', order: 0,
     roadWidth: 320, fuelStart: 0.82, scoreBronze: 14000, scoreGold: 30000,
-    fuelCans: 8, cashTokens: 18, boosters: 3, ramps: 0, jumpFracs: [0.314, 0.97],
-    // GENTEN (原点, "the origin / starting point"). Section-built and verified
-    // overlap-free (tools/trackcheck.mjs): long intro straight -> big tightening
-    // right (~135°) -> left horseshoe -> jump straight -> twin hairpins (the jump
-    // can leap across them) -> massive semicircle (big drift) -> flowing run to finish.
+    fuelCans: 10, cashTokens: 22, boosters: 4, ramps: 0, jumpFracs: [0.452, 0.97],
+    // GENTEN (原点, "the origin"). Spread-out, flowing layout (verified overlap-free
+    // via tools/trackcheck.mjs) built on real drift-track principles — mixed corner
+    // types, transitions to flick through, never 3 hairpins in a row:
+    // straight -> fast right sweeper -> left hairpin -> diagonal -> right sweeper ->
+    // left flick -> JUMP straight -> right hairpin -> big left sweeper (huge drift)
+    // -> right kink -> esses -> finish jump (portal).
     segments: [
       ['s', 600],
-      ['r', 95, 360], ['r', 40, 230],
-      ['l', 180, 300],
-      ['s', 780],
-      ['r', 180, 230],
-      ['s', 320],
-      ['l', 180, 230],
+      ['r', 90, 480],
       ['s', 300],
-      ['r', 180, 460],
-      ['s', 380], ['l', 85, 320], ['s', 320], ['r', 70, 300], ['s', 440],
+      ['l', 180, 285],
+      ['s', 520],
+      ['r', 70, 360],
+      ['l', 90, 280],
+      ['s', 700],
+      ['r', 180, 285],
+      ['s', 380],
+      ['l', 160, 460],
+      ['r', 60, 320],
+      ['s', 400], ['l', 80, 300], ['s', 360], ['r', 50, 340], ['s', 500],
     ],
   },
   {

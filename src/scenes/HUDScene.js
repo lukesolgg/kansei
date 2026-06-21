@@ -56,8 +56,12 @@ export default class HUDScene extends Phaser.Scene {
     this.fuelG = this.add.graphics();
     this.outText = this.add.text(W - 36, H - 38, '', labelStyle(13, COLORS.red)).setOrigin(1, 0);
 
+    // Boost charge bar (bottom-center) with a red "perfect release" line at 90%.
+    this.boostG = this.add.graphics();
+    this.add.text(W / 2, H - 70, 'BOOST', labelStyle(13, COLORS.cyan)).setOrigin(0.5).setLetterSpacing(3);
+
     // Pause hint (bottom-center)
-    this.add.text(W / 2, H - 22, 'ESC to pause', labelStyle(14, COLORS.textMute)).setOrigin(0.5);
+    this.add.text(W / 2, H - 18, 'ESC to pause', labelStyle(13, COLORS.textMute)).setOrigin(0.5);
 
     if (this.sys.game.device.input.touch || window.matchMedia('(pointer: coarse)').matches) {
       this._touchControls(W, H);
@@ -137,5 +141,24 @@ export default class HUDScene extends Phaser.Scene {
     fg.lineStyle(2, fcol, 0.7);
     fg.strokeRoundedRect(fx, fy, fw, fh, 5);
     this.outText.setText(h.outOfFuel ? 'OUT OF FUEL!' : h.fuelLow ? 'LOW FUEL' : '');
+
+    // Boost charge bar (bottom-center): fills as you hold a slide; release near the
+    // red line (90%) for a PERFECT bonus.
+    const bw = 260;
+    const bx = W / 2 - bw / 2;
+    const by = H - 56;
+    const charge = Phaser.Math.Clamp(h.boostCharge || 0, 0, 1);
+    const perfectZone = charge >= 0.81 && charge <= 0.99;
+    const bg = this.boostG;
+    bg.clear();
+    bg.fillStyle(COLORS.bgDeep, 0.85);
+    bg.fillRoundedRect(bx, by, bw, 12, 6);
+    bg.fillStyle(perfectZone ? COLORS.amber : COLORS.cyan, perfectZone ? 1 : 0.9);
+    bg.fillRoundedRect(bx, by, Math.max(2, bw * charge), 12, 6);
+    // red "perfect release" line at 90%
+    bg.fillStyle(COLORS.red, 1);
+    bg.fillRect(bx + bw * 0.9 - 1.5, by - 3, 3, 18);
+    bg.lineStyle(2, perfectZone ? COLORS.amber : COLORS.cyan, 0.8);
+    bg.strokeRoundedRect(bx, by, bw, 12, 6);
   }
 }

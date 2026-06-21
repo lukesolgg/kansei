@@ -91,6 +91,8 @@ export class Car {
     this.driftCharge = 0; // builds while sliding with the handbrake
     this.boost = 0; // current mini-turbo boost level (decays)
     this.boostFired = 0; // >0 on the frame a boost releases (for fx)
+    this.perfectRelease = false; // true on the frame a ~90%-charge release lands
+    this.driftChargeFrac = 0; // 0..1 current mini-turbo charge (for the HUD boost bar)
     this.driftLift = 0; // eased top-speed cap lift from drifting (carries pace out of a slide)
     this.wallBoost = 0; // 0..1 outer-wall proximity boost (set by the scene from track geometry)
     this.flickEnergy = 0; // built by pumping the steer mid-drift (Scandinavian flick)
@@ -297,15 +299,20 @@ export class Car {
       this.driftCharge = Math.max(0, this.driftCharge - dt * 1.5);
     }
     this.boostFired = 0;
+    this.perfectRelease = false;
     if (this._prevHandbrake && !handbrake && this.driftCharge > TUNING.driftBoostMin) {
-      const amt = this.driftCharge;
+      const chargeFrac = this.driftCharge / TUNING.driftBoostChargeMax;
+      const perfect = Math.abs(chargeFrac - TUNING.perfectReleaseFrac) < TUNING.perfectReleaseWindow;
+      const amt = this.driftCharge * (perfect ? 1 + TUNING.perfectReleaseBonus : 1);
       const blast = TUNING.driftBoostPower * amt;
       this.vx += cos * blast;
       this.vy += sin * blast;
       this.boost = Math.min(1, amt / TUNING.driftBoostChargeMax);
       this.boostFired = this.boost;
+      this.perfectRelease = perfect;
       this.driftCharge = 0;
     }
+    this.driftChargeFrac = Math.min(1, this.driftCharge / TUNING.driftBoostChargeMax);
     this._prevHandbrake = handbrake;
     if (this.boost > 0) this.boost = Math.max(0, this.boost - TUNING.driftBoostDecay * dt);
 
