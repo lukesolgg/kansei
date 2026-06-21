@@ -3,6 +3,7 @@
 // short synth SFX, and a layered synthwave music bed with a reactive lead.
 
 import { Save } from './SaveManager.js';
+import { CARS } from '../config/cars.js';
 
 // Five short, climbing gear ratios. A gear's note rises across its rev span,
 // then snaps back down on the next gear (an upshift) — classic acceleration feel.
@@ -14,8 +15,39 @@ const GEAR_BANDS = [
   { lo: 0.82, hi: 1.01, fLo: 165, fHi: 260 },
 ];
 
+// --- Engine voicing constants -------------------------------------------------
+// One place to tune the "feel" of the combustion model.
+const ENGINE = {
+  // WaveShaper drive: how hard the tone is distorted. Scales up with load so the
+  // engine gets throatier/dirtier as you lean on it (idle = clean-ish, WOT = nasty).
+  DRIVE_IDLE: 2.5,
+  DRIVE_LOAD: 14, // extra drive added at full load
+  // "Combustion lumpiness": a low-rate amplitude wobble that gives the tone a
+  // chugging, firing-pulse character instead of a static drone.
+  LUMP_DEPTH: 0.28, // 0..1 amount of the firing wobble at idle
+  LUMP_DEPTH_HI: 0.1, // it smooths out (less lumpy) at high rev
+  FIRE_MULT: 1.6, // firing wobble rate relative to engine note
+  // Pops & bangs (overrun crackle / mini backfires).
+  LIFT_DROP: 0.16, // load must fall at least this much between frames to count as lift-off
+  LIFT_HIGH: 0.45, // ...and we must have been at least this loaded before
+  POP_COOLDOWN: 0.18, // seconds between crackle bursts (anti-spam)
+};
+
 function clamp01(v) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+// Build a tanh-style waveshaping curve. `k` controls how aggressive the
+// saturation/clip is — higher k = more harmonics = more combustion grit.
+function makeShaperCurve(k) {
+  const n = 1024;
+  const curve = new Float32Array(n);
+  const kk = Math.max(0.0001, k);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.tanh(kk * x);
+  }
+  return curve;
 }
 
 class AudioBus {
@@ -36,6 +68,10 @@ class AudioBus {
     this._gearIndex = 0;
     this._prevRev = 0;
     this._intensity = 0;
+    this._lastPop = 0; // ctx time of the last crackle burst (cooldown)
+    this._firePhase = 0; // running phase for the combustion firing wobble
+    this._lastUpdate = 0; // ctx time of the previous updateEngine() call (for dt)
+    this._car = null; // per-car voicing profile (see _carProfile)
 
     // Stored volumes (0..1) for a future settings menu. Defaults to 1.
     this._vMaster = 1;
@@ -179,12 +215,44 @@ class AudioBus {
   }
 
   // ---- Engine (continuous, reactive) --------------------------------------
+
+  // Derive a per-car voicing profile from cars.js so each ride has character.
+  // Reads the currently selected car; falls back to neutral values if unknown.
+  // Returns: pitch (note multiplier), revvy (0..1 high-revving vs torquey),
+  // grit (base distortion), bright (filter openness), lumpy (combustion lump),
+  // popChance (likelihood of overrun crackle), idleHz (base idle frequency).
+  _carProfile() {
+    const car = CARS[Save.selectedCar];
+    const phys = (car && car.phys) || {};
+    const power = typeof phys.power === 'number' ? phys.power : 1.0; // ~0.9..1.5
+    const mass = typeof phys.mass === 'number' ? phys.mass : 1.0; // ~0.9..1.26
+    const maxSpeed = typeof phys.maxSpeed === 'number' ? phys.maxSpeed : 400;
+
+    // Power-to-weight: light + powerful = revvy/raspy; heavy = torquey/deep.
+    const pw = power / mass; // ~0.8..1.25
+    const revvy = clamp01((pw - 0.85) / 0.45);
+    // Higher top-speed cars sit a touch higher in pitch; heavy cars drop lower.
+    const pitch = 0.86 + revvy * 0.34 + (maxSpeed - 400) / 4000 - (mass - 1) * 0.12;
+    return {
+      pitch: Math.max(0.6, Math.min(1.5, pitch)),
+      revvy,
+      grit: 0.5 + revvy * 0.5 + Math.min(0.4, (power - 1) * 0.6), // more power = dirtier
+      bright: 0.6 + revvy * 0.5, // revvy cars are brighter/raspier
+      lumpy: 0.5 + (1 - revvy) * 0.6, // torquey cars chug more (lumpier idle)
+      popChance: 0.25 + revvy * 0.45 + Math.min(0.25, (power - 1) * 0.4), // raspy cars crackle more
+      idleHz: 46 + revvy * 16, // higher-revving idle sits up a bit
+    };
+  }
+
   startEngine() {
     if (!this.ready || this.engine) return;
     const ctx = this.ctx;
     const t = this.t;
 
-    // --- Tone stack: 3 detuned oscillators + a sub-octave through a lowpass.
+    const prof = this._carProfile();
+    this._car = prof;
+
+    // --- Tone stack: 3 detuned oscillators + a sub-octave.
     const osc1 = ctx.createOscillator();
     const osc2 = ctx.createOscillator();
     const osc3 = ctx.createOscillator();
@@ -192,19 +260,35 @@ class AudioBus {
     osc1.type = 'sawtooth';
     osc2.type = 'sawtooth';
     osc3.type = 'square';
-    sub.type = 'square';
-    osc2.detune.value = 8; // slight detune = thickness / beating
-    osc3.detune.value = -12;
+    sub.type = 'sine'; // a clean sine sub reads as body, not buzz
+    // Wider detune on revvy cars = more rasp/beating; tighter on torquey ones.
+    const det = 6 + prof.revvy * 10;
+    osc2.detune.value = det;
+    osc3.detune.value = -(det + 4);
 
     const toneGain = ctx.createGain();
-    toneGain.gain.value = 0.5;
+    toneGain.gain.value = 0.42;
     osc1.connect(toneGain);
     osc2.connect(toneGain);
     osc3.connect(toneGain);
 
     const subGain = ctx.createGain();
-    subGain.gain.value = 0.6;
+    subGain.gain.value = 0.7; // strong low-end body
     sub.connect(subGain);
+
+    // --- Combustion firing pulse: an amplitude wobble that makes the tone
+    //     "chug" like discrete cylinder firings instead of droning. Driven by a
+    //     unipolar LFO (a sine pushed positive) modulating fireGain.gain.
+    const fireOsc = ctx.createOscillator();
+    fireOsc.type = 'sine';
+    fireOsc.frequency.value = 40;
+    const fireDepth = ctx.createGain(); // scales the LFO into a 0..depth range
+    fireDepth.gain.value = ENGINE.LUMP_DEPTH;
+    const fireGain = ctx.createGain(); // the tone passes through here; gain is modulated
+    fireGain.gain.value = 1 - ENGINE.LUMP_DEPTH * 0.5; // DC offset (avg level)
+    fireOsc.connect(fireDepth);
+    fireDepth.connect(fireGain.gain); // additive AM around the DC offset
+    toneGain.connect(fireGain);
 
     // --- Grit: a touch of looping filtered noise to roughen the idle.
     const gritSrc = ctx.createBufferSource();
@@ -219,14 +303,24 @@ class AudioBus {
     gritSrc.connect(gritFilter);
     gritFilter.connect(gritGain);
 
+    // --- Waveshaper: saturates the firing tone + grit into a fuller, throatier
+    //     combustion timbre (adds harmonics). preGain drives it harder under load.
+    const preGain = ctx.createGain();
+    preGain.gain.value = ENGINE.DRIVE_IDLE;
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = makeShaperCurve(ENGINE.DRIVE_IDLE);
+    shaper.oversample = '2x';
+    fireGain.connect(preGain);
+    gritGain.connect(preGain);
+    preGain.connect(shaper);
+
     // --- Shared lowpass that opens up with revs.
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.value = 600;
-    filter.Q.value = 0.8;
-    toneGain.connect(filter);
-    subGain.connect(filter);
-    gritGain.connect(filter);
+    filter.Q.value = 0.9;
+    shaper.connect(filter);
+    subGain.connect(filter); // sub bypasses the shaper to stay clean/round
 
     const gain = ctx.createGain();
     gain.gain.value = 0.0;
@@ -248,36 +342,48 @@ class AudioBus {
     turboGain.connect(this.engineGain);
 
     // --- Tire squeal: continuous bandpassed noise driven by the slip param.
+    //     A gentle lowpass after the bandpass tames harsh high-end hiss.
     const tireSrc = ctx.createBufferSource();
     tireSrc.buffer = this.noiseBuffer;
     tireSrc.loop = true;
     const tireFilter = ctx.createBiquadFilter();
     tireFilter.type = 'bandpass';
     tireFilter.frequency.value = 2600;
-    tireFilter.Q.value = 7;
+    tireFilter.Q.value = 5; // softer Q than before = less piercing
+    const tireTame = ctx.createBiquadFilter();
+    tireTame.type = 'lowpass';
+    tireTame.frequency.value = 4200;
+    tireTame.Q.value = 0.5;
     const tireGain = ctx.createGain();
     tireGain.gain.value = 0.0;
     tireSrc.connect(tireFilter);
-    tireFilter.connect(tireGain);
+    tireFilter.connect(tireTame);
+    tireTame.connect(tireGain);
     tireGain.connect(this.engineGain);
 
     osc1.start(t);
     osc2.start(t);
     osc3.start(t);
     sub.start(t);
+    fireOsc.start(t);
     gritSrc.start(t);
     turboOsc.start(t);
     tireSrc.start(t);
 
     this.engine = {
       osc1, osc2, osc3, sub,
+      fireOsc, fireDepth, fireGain,
+      preGain, shaper,
       filter, gain, gritGain,
       turboOsc, turboFilter, turboGain,
       tireFilter, tireGain,
       turboSpool: 0, // smoothed spool amount, tracked for the blow-off trigger
+      shaperK: ENGINE.DRIVE_IDLE, // current shaper aggressiveness (rebuilt lazily)
     };
     this._gearIndex = 0;
     this._prevRev = 0;
+    this._lastPop = 0;
+    this._lastUpdate = t;
   }
 
   // rev: 0..1 overall engine load; slip: 0..1 wheelspin/drift intensity.
@@ -286,6 +392,7 @@ class AudioBus {
     const e = this.engine;
     const t = this.t;
     const tc = 0.06; // smoothing time constant — kills zipper noise
+    const prof = this._car || { pitch: 1, revvy: 0.4, grit: 0.7, bright: 0.8, lumpy: 0.7, popChance: 0.4, idleHz: 50 };
 
     if (!Save.settings.sfx) {
       // Muted: fade the whole engine bus down but keep oscillators alive cheaply.
@@ -293,6 +400,7 @@ class AudioBus {
       e.turboGain.gain.setTargetAtTime(0, t, 0.05);
       e.tireGain.gain.setTargetAtTime(0, t, 0.05);
       this._prevRev = rev;
+      this._lastUpdate = t;
       return;
     }
 
@@ -305,25 +413,46 @@ class AudioBus {
     while (gi < GEAR_BANDS.length - 1 && rev >= GEAR_BANDS[gi].hi) gi++;
     while (gi > 0 && rev < GEAR_BANDS[gi].lo) gi--;
     if (gi !== this._gearIndex) {
-      this._shiftTransient(gi > this._gearIndex); // true = upshift
+      const isUp = gi > this._gearIndex;
+      this._shiftTransient(isUp); // true = upshift
+      // Upshifts under load throw an exhaust crackle/pop — the gear-change bang.
+      if (isUp && this._prevRev > 0.4) this._popBang(0.6 + 0.4 * this._prevRev, prof);
       this._gearIndex = gi;
     }
     band = GEAR_BANDS[gi];
 
     // Note rises across the band (revs climbing), snaps down on the next gear.
+    // Per-car pitch multiplier gives each ride its own voice.
     const span = Math.max(0.001, band.hi - band.lo);
     const within = clamp01((rev - band.lo) / span);
-    const baseFreq = band.fLo + (band.fHi - band.fLo) * within;
+    const baseFreq = (band.fLo + (band.fHi - band.fLo) * within) * prof.pitch;
 
     e.osc1.frequency.setTargetAtTime(baseFreq, t, tc);
     e.osc2.frequency.setTargetAtTime(baseFreq * 1.005, t, tc);
     e.osc3.frequency.setTargetAtTime(baseFreq * 0.995, t, tc);
     e.sub.frequency.setTargetAtTime(baseFreq * 0.5, t, tc);
 
+    // --- Combustion firing pulse: rate tracks the note (more revs = faster
+    //     firing), depth eases off at high rev so it smooths into a wail.
+    const fireHz = Math.max(8, baseFreq * ENGINE.FIRE_MULT);
+    e.fireOsc.frequency.setTargetAtTime(fireHz, t, tc);
+    const lump = (ENGINE.LUMP_DEPTH * (0.5 + prof.lumpy) ) * (1 - rev) + ENGINE.LUMP_DEPTH_HI * rev;
+    e.fireDepth.gain.setTargetAtTime(lump, t, tc);
+    e.fireGain.gain.setTargetAtTime(1 - lump * 0.5, t, tc);
+
+    // --- Waveshaper drive: clean-ish at idle, throatier/dirtier under load.
+    //     Rebuild the curve only when it has changed meaningfully (cheap).
+    const drive = (ENGINE.DRIVE_IDLE + ENGINE.DRIVE_LOAD * rev) * prof.grit + slip * 4;
+    e.preGain.gain.setTargetAtTime(0.6 + rev * 0.5, t, tc);
+    if (Math.abs(drive - e.shaperK) > 0.8) {
+      e.shaper.curve = makeShaperCurve(drive);
+      e.shaperK = drive;
+    }
+
     // Filter and gain open up with revs; slip adds grit/brightness.
-    e.filter.frequency.setTargetAtTime(500 + rev * 2200 + slip * 1400, t, tc);
+    e.filter.frequency.setTargetAtTime((420 + rev * 2400 + slip * 1200) * (0.7 + prof.bright * 0.5), t, tc);
     e.gain.gain.setTargetAtTime(0.05 + rev * 0.13 + slip * 0.04, t, tc);
-    e.gritGain.gain.setTargetAtTime(0.03 + slip * 0.06, t, tc);
+    e.gritGain.gain.setTargetAtTime(0.025 + rev * 0.02 + slip * 0.06, t, tc);
 
     // --- Turbo spool: builds with sustained high rev, leaks away otherwise.
     const targetSpool = rev > 0.55 ? clamp01((rev - 0.55) / 0.45) : 0;
@@ -333,18 +462,84 @@ class AudioBus {
     e.turboOsc.frequency.setTargetAtTime(1800 + spool * 2600, t, tc);
     e.turboGain.gain.setTargetAtTime(spool * 0.05, t, tc);
 
-    // --- Blow-off valve: rev dropped sharply after being high → "pshhh".
-    if (this._prevRev > 0.7 && rev < this._prevRev - 0.22) {
+    // --- Lift-off detection: throttle dropped sharply from a high load.
+    //     Triggers both the turbo blow-off and an overrun crackle (pops/bangs).
+    const drop = this._prevRev - rev;
+    if (this._prevRev > 0.7 && drop > 0.22) {
       this._blowOff();
       e.turboSpool *= 0.2; // dump the boost
+    }
+    if (this._prevRev > ENGINE.LIFT_HIGH && drop > ENGINE.LIFT_DROP) {
+      // Bigger drop + higher prior load = louder, more likely crackle.
+      const intensity = clamp01(drop * 2.2 + (this._prevRev - ENGINE.LIFT_HIGH));
+      this._overrunCrackle(intensity, prof);
     }
 
     // --- Tire squeal: continuous, tracks slip. Silent at slip~0.
     const squeal = slip * slip; // bias toward only screaming at high slip
-    e.tireFilter.frequency.setTargetAtTime(1800 + slip * 2600, t, tc);
-    e.tireGain.gain.setTargetAtTime(squeal * 0.16, t, tc);
+    e.tireFilter.frequency.setTargetAtTime(1600 + slip * 2200, t, tc);
+    e.tireGain.gain.setTargetAtTime(squeal * 0.14, t, tc);
 
     this._prevRev = rev;
+    this._lastUpdate = t;
+  }
+
+  // ---- Pops & bangs (overrun crackle / mini backfires) --------------------
+
+  // A burst of several tiny filtered-noise pops — exhaust overrun crackle on
+  // lift-off. `amount` 0..1 scales count/level; cooldown-gated and randomised
+  // by the car's popChance so it stays tasteful, not constant.
+  _overrunCrackle(amount, prof) {
+    if (!this.ctx) return;
+    const t = this.t;
+    if (t - this._lastPop < ENGINE.POP_COOLDOWN) return; // anti-spam
+    if (Math.random() > (prof.popChance + amount * 0.3)) return; // occasional, not every time
+    this._lastPop = t;
+
+    const pops = 2 + Math.floor(Math.random() * (2 + amount * 3)); // 2..~7 little cracks
+    for (let i = 0; i < pops; i++) {
+      const when = t + i * (0.018 + Math.random() * 0.04);
+      const level = (0.05 + Math.random() * 0.07) * (0.6 + amount * 0.8);
+      this._pop(when, level, 700 + Math.random() * 2600);
+    }
+  }
+
+  // A single louder backfire "bang" (gear-change / hard upshift).
+  _popBang(amount, prof) {
+    if (!this.ctx) return;
+    const t = this.t;
+    if (t - this._lastPop < ENGINE.POP_COOLDOWN * 0.5) return;
+    if (Math.random() > prof.popChance * 0.9 + 0.1) return;
+    this._lastPop = t;
+    this._pop(t, 0.1 + amount * 0.08, 280 + Math.random() * 500); // low, fat bang
+    // A couple of quick after-cracks for the "bang... crackle" tail.
+    const tail = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < tail; i++) {
+      this._pop(t + 0.03 + i * 0.035, 0.04 + Math.random() * 0.05, 900 + Math.random() * 2400);
+    }
+  }
+
+  // One short, sharp filtered-noise transient — the building block of a pop.
+  _pop(when, level, cutoff) {
+    if (!this.ctx) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    src.loop = true;
+    src.playbackRate.value = 0.6 + Math.random() * 1.2;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = cutoff;
+    bp.Q.value = 1.2 + Math.random() * 1.5;
+    const g = this.ctx.createGain();
+    // Very fast attack, snappy decay = a crack/pop rather than a hiss.
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(level, when + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.05 + Math.random() * 0.04);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(this.engineGain);
+    src.start(when);
+    src.stop(when + 0.16);
   }
 
   // Short, subtle clutch/shift transient on gear change.
@@ -408,9 +603,11 @@ class AudioBus {
       e.osc2.stop(stopAt);
       e.osc3.stop(stopAt);
       e.sub.stop(stopAt);
+      e.fireOsc.stop(stopAt);
       e.turboOsc.stop(stopAt);
     } catch (_) {}
     this.engine = null;
+    this._car = null;
   }
 
   // ---- Music bed (layered synthwave + reactive lead) ----------------------

@@ -159,6 +159,9 @@ export const LEVELS = RAW.map((lvl) => {
   const path = buildPath(lvl.segments, lvl.startAngle || 0);
   return {
     ...lvl,
+    // Roads are 25% wider than authored — more room for the street, roadside props
+    // and committed drifts.
+    roadWidth: Math.round(lvl.roadWidth * 1.25),
     // Tighter fuel economy: roughly half the cans and a leaner tank to start, so
     // levels demand fuel upgrades + a few attempts rather than a single easy lap.
     fuelCans: Math.max(1, Math.round(lvl.fuelCans * 0.5)),

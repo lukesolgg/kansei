@@ -22,6 +22,15 @@ export const COLORS = {
   text: 0xf2f0ff,
   textDim: 0x9b95cf,
   textMute: 0x615a8f,
+
+  // ---- Retro-pixel street (asphalt + JP road markings) ----
+  asphalt: 0x3c3f46, // grey tarmac
+  asphaltDark: 0x303338,
+  asphaltWorn: 0x474a52, // lighter wheel-path strips
+  roadEdgeLine: 0xeae4d2, // cream white edge line
+  roadCentreLine: 0xf3c640, // JP yellow centre line
+  kerb: 0x7b7f88, // light-grey kerb
+  lamp: 0xffca6e, // warm sodium lamp glow
 };
 
 // String versions for CSS / DOM-ish usage and quick reference.

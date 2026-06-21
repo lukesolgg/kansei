@@ -11,6 +11,7 @@ import GameScene from './scenes/GameScene.js';
 import HUDScene from './scenes/HUDScene.js';
 import ResultScene from './scenes/ResultScene.js';
 import SettingsScene from './scenes/SettingsScene.js';
+import PauseScene from './scenes/PauseScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -47,6 +48,7 @@ const config = {
     HUDScene,
     ResultScene,
     SettingsScene,
+    PauseScene,
   ],
 };
 

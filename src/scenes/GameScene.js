@@ -10,7 +10,6 @@ import { Car } from '../game/Car.js';
 import { DriftScorer } from '../game/DriftScorer.js';
 import { InputController, resetTouch } from '../game/Input.js';
 import { SkidMarks } from '../game/SkidMarks.js';
-import { neonButton } from '../ui/widgets.js';
 import { makeSoftCircle } from '../core/neon.js';
 import { applyGameplayFX, setSpeedFX, pulseBloom } from '../core/fx.js';
 
@@ -91,6 +90,8 @@ export default class GameScene extends Phaser.Scene {
     // State machine: intro -> play -> over
     this.state = 'intro';
     this.paused = false;
+    // PauseScene resumes us via scene.resume() -> 'resume' event; unfreeze physics.
+    this.events.on('resume', () => this._onResumed());
     this._startEngineSoon();
     this._countdown();
 
@@ -111,7 +112,7 @@ export default class GameScene extends Phaser.Scene {
 
   _blankHud() {
     return {
-      score: 0, multiplier: 1, chain: 0, driftActive: false,
+      score: 0, multiplier: 1, driftMult: 1, speedMult: 1, chain: 0, driftActive: false,
       fuel: this.fuel / this.fuelMax, fuelLow: false, outOfFuel: false,
       speed: 0, progress: 0, cash: 0, level: this.level,
       paused: false, state: 'intro',
@@ -446,12 +447,14 @@ export default class GameScene extends Phaser.Scene {
     const h = this.hud;
     h.score = this.scorer.score;
     h.multiplier = this.scorer.multiplier;
+    h.driftMult = this.scorer.multiplier;
+    h.speedMult = this.scorer.speedMult;
     h.chain = this.scorer.chain;
     h.driftActive = this.scorer.driftActive;
     h.fuel = this.fuel / this.fuelMax;
     h.fuelLow = h.fuel <= TUNING.lowFuelWarn;
     h.outOfFuel = this.fuel <= 0;
-    h.speed = Math.round(this.car.speed * 0.36);
+    h.speed = Math.round(this.car.speed * 0.3); // arcade MPH
     h.progress = this.track.progressFrac();
     h.cash = this.cashCollected;
     h.paused = this.paused;
@@ -459,39 +462,22 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---- Pause -------------------------------------------------------------
+  // The pause menu is its own static-camera scene (PauseScene) so its buttons get
+  // clean pointer hit-testing — the GameScene camera is zoomed + scrolling, which
+  // mis-maps clicks. We just freeze physics and hand off; PauseScene resumes us.
   _togglePause() {
-    this.paused = !this.paused;
-    if (this.paused) {
-      this.matter.world.pause();
-      Audio.updateEngine(0, 0);
-      this._showPauseUI();
-    } else {
-      this.matter.world.resume();
-      this._hidePauseUI();
-    }
+    if (this.paused) return;
+    this.paused = true;
+    this.matter.world.pause();
+    Audio.updateEngine(0, 0);
+    this.scene.launch('PauseScene', { gameKey: this.scene.key, levelId: this.levelId });
+    this.scene.bringToTop('PauseScene');
+    this.scene.pause();
   }
 
-  _showPauseUI() {
-    const w = this.scale.width;
-    const h = this.scale.height;
-    this.pauseUI = [];
-    const dim = this.add.rectangle(0, 0, w, h, 0x05040b, 0.78).setOrigin(0, 0).setScrollFactor(0).setDepth(80);
-    const title = this.add.text(w / 2, h / 2 - 130, 'PAUSED', { ...titleStyle(64), color: hex(COLORS.cyan) })
-      .setOrigin(0.5).setScrollFactor(0).setDepth(81).setLetterSpacing(8);
-    this.pauseUI.push(dim, title);
-    const mkBtn = (y, label, color, cb) => {
-      const b = neonButton(this, w / 2, y, 300, 58, label, { color }, cb);
-      b.setScrollFactor(0).setDepth(81);
-      this.pauseUI.push(b);
-    };
-    mkBtn(h / 2 - 30, '▶ RESUME', COLORS.lime, () => this._togglePause());
-    mkBtn(h / 2 + 44, '↻ RESTART', COLORS.amber, () => { this._hidePauseUI(); this.scene.stop('HUDScene'); this.scene.restart({ levelId: this.levelId }); });
-    mkBtn(h / 2 + 118, '✕ QUIT TO STAGES', COLORS.red, () => { this._exitTo('LevelSelectScene'); });
-  }
-
-  _hidePauseUI() {
-    if (this.pauseUI) this.pauseUI.forEach((o) => o.destroy());
-    this.pauseUI = null;
+  _onResumed() {
+    this.paused = false;
+    if (this.matter && this.matter.world) this.matter.world.resume();
   }
 
   // ---- End ---------------------------------------------------------------
@@ -559,8 +545,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _exitTo(scene) {
-    this._hidePauseUI();
-    this.matter.world.resume();
+    if (this.matter && this.matter.world) this.matter.world.resume();
     Audio.stopEngine();
     this.scene.stop('HUDScene');
     this.scene.start(scene);

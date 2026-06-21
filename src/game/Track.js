@@ -141,32 +141,48 @@ export class Track {
     const g = this.scene.add.graphics();
     g.setDepth(-10);
 
-    // Tarmac fill (left edge forward, right edge back = closed ring).
+    // Grey asphalt fill (left edge forward, right edge back = closed ring).
     const ring = left.concat(right.slice().reverse());
-    g.fillStyle(this.zone.road, 1);
+    g.fillStyle(COLORS.asphalt, 1);
     g.fillPoints(ring, true, true);
 
-    // Subtle inner tarmac sheen.
-    g.fillStyle(mixColor(this.zone.road, COLORS.white, 0.04), 1);
-    const innerL = [];
-    const innerR = [];
+    // Lighter worn wheel-path strips either side of centre, for tarmac texture.
+    g.fillStyle(COLORS.asphaltWorn, 0.45);
+    for (const sgn of [1, -1]) {
+      const a = [];
+      const b = [];
+      for (let i = 0; i < p.length; i++) {
+        const n = this.normals[i];
+        const c0 = sgn * half * 0.64;
+        const c1 = sgn * half * 0.34;
+        a.push({ x: p[i].x + n.x * c0, y: p[i].y + n.y * c0 });
+        b.push({ x: p[i].x + n.x * c1, y: p[i].y + n.y * c1 });
+      }
+      g.fillPoints(a.concat(b.slice().reverse()), true, true);
+    }
+
+    // Kerbs + solid cream edge lines just inside them.
+    const edge = this.scene.add.graphics();
+    edge.setDepth(-9);
+    this._polyline(edge, left, COLORS.kerb, 8, 1);
+    this._polyline(edge, right, COLORS.kerb, 8, 1);
+    const inL = [];
+    const inR = [];
     for (let i = 0; i < p.length; i++) {
       const n = this.normals[i];
-      innerL.push({ x: p[i].x + n.x * half * 0.55, y: p[i].y + n.y * half * 0.55 });
-      innerR.push({ x: p[i].x - n.x * half * 0.55, y: p[i].y - n.y * half * 0.55 });
+      const k = half - 15;
+      inL.push({ x: p[i].x + n.x * k, y: p[i].y + n.y * k });
+      inR.push({ x: p[i].x - n.x * k, y: p[i].y - n.y * k });
     }
-    g.fillPoints(innerL.concat(innerR.slice().reverse()), true, true);
+    this._polyline(edge, inL, COLORS.roadEdgeLine, 3, 0.85);
+    this._polyline(edge, inR, COLORS.roadEdgeLine, 3, 0.85);
 
-    // Neon edge lines.
-    neonPolyline(g, left, this.zone.edge, 4);
-    neonPolyline(g, right, this.zone.edge, 4);
-
-    // Dashed centre line.
+    // Dashed yellow centre line (Japanese street).
     const dash = this.scene.add.graphics();
     dash.setDepth(-9);
-    dash.lineStyle(3, mixColor(this.zone.edge, COLORS.white, 0.3), 0.35);
-    const dashLen = 46;
-    const gap = 46;
+    dash.lineStyle(4, COLORS.roadCentreLine, 0.92);
+    const dashLen = 52;
+    const gap = 40;
     let d = 0;
     let on = true;
     while (d < this.total) {
@@ -181,6 +197,12 @@ export class Track {
       d += on ? dashLen : gap;
       on = !on;
     }
+  }
+
+  // Plain (non-neon) stroked polyline through a list of points.
+  _polyline(g, pts, color, width, alpha) {
+    g.lineStyle(width, color, alpha == null ? 1 : alpha);
+    g.strokePoints(pts, false, false);
   }
 
   _drawBand(dist, color, checkered) {

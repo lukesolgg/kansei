@@ -17,6 +17,7 @@ export class DriftScorer {
     this.driftActive = false;
     this._bankedFlash = 0; // amount banked since last consume (for popups)
     this.bestMultiplier = 1;
+    this.speedMult = 1; // separate multiplier driven by how fast you're going
   }
 
   // Running score shown live = banked + current chain.
@@ -25,6 +26,12 @@ export class DriftScorer {
   }
 
   update(dt, car) {
+    // Speed multiplier (always live): rewards pace — 1x crawling up to ~3.4x flat-out
+    // (and beyond with wall/drift boosts). Feeds the drift score too.
+    const maxSp = car.phys && car.phys.maxSpeed ? car.phys.maxSpeed : 1;
+    const spF = Math.max(0, Math.min(1.6, car.speed / maxSp));
+    this.speedMult = 1 + spF * 1.5;
+
     if (car.isDrifting) {
       this.driftActive = true;
       this.graceMs = TUNING.comboGraceMs;
@@ -34,7 +41,7 @@ export class DriftScorer {
         this.multiplier + TUNING.multiplierRamp * (0.6 + angleF * 0.6) * dt,
       );
       this.bestMultiplier = Math.max(this.bestMultiplier, this.multiplier);
-      this.chain += car.speed * angleF * this.multiplier * TUNING.scoreRate * dt;
+      this.chain += car.speed * angleF * this.multiplier * this.speedMult * TUNING.scoreRate * dt;
     } else {
       this.driftActive = false;
       if (this.graceMs > 0) {
