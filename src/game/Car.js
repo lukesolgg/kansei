@@ -32,6 +32,7 @@ export class Car {
     // Resolve upgrades into effective physics.
     const eng = UPGRADES.engine.levels[upgradeLevels.engine || 0].value;
     const tireBonus = UPGRADES.tires.levels[upgradeLevels.tires || 0].value;
+    const turbo = UPGRADES.turbo.levels[upgradeLevels.turbo || 0].value;
     const p = carDef.phys;
     this.phys = {
       power: p.power * eng,
@@ -40,6 +41,7 @@ export class Car {
       turn: p.turn,
       mass: p.mass,
       tireBonus,
+      boost: turbo, // mini-turbo power multiplier
     };
     this.fuelTank = UPGRADES.fuel.levels[upgradeLevels.fuel || 0].value;
 
@@ -307,7 +309,7 @@ export class Car {
       const chargeFrac = this.driftCharge / TUNING.driftBoostChargeMax;
       const perfect = Math.abs(chargeFrac - TUNING.perfectReleaseFrac) < TUNING.perfectReleaseWindow;
       const amt = this.driftCharge * (perfect ? 1 + TUNING.perfectReleaseBonus : 1);
-      const blast = TUNING.driftBoostPower * amt;
+      const blast = TUNING.driftBoostPower * amt * this.phys.boost;
       this.vx += cos * blast;
       this.vy += sin * blast;
       this.boost = Math.min(1, amt / TUNING.driftBoostChargeMax);

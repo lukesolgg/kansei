@@ -1,7 +1,7 @@
 // Local profile + persistence layer. Everything lives in localStorage — no server.
 // A "login" is just selecting a profile and (optionally) entering its 4-digit PIN.
 
-import { CARS, STARTER_CAR, clampSchemeIndex } from '../config/cars.js';
+import { CARS, STARTER_CAR, clampSchemeIndex, clampCosmetic, GLOWS } from '../config/cars.js';
 import { UPGRADES } from '../config/upgrades.js';
 import { getLevelFromXp } from './leveling.js';
 
@@ -41,6 +41,8 @@ function blankProfile(name, pin) {
     // Per-car chosen colour-scheme index: { ae86: 0, s15: 3, ... }. Missing
     // entries fall back to the car's stock scheme (see getCarColor).
     carColors: {},
+    // Per-car cosmetics: { ae86: { decal:1, rim:2, glow:0 }, ... }
+    carCosmetics: {},
     // Per-level progress: { 'docks-1': { cleared:true, stars:2, bestScore:12345 } }
     levels: {},
     settings: { ...DEFAULT_SETTINGS },
@@ -211,6 +213,26 @@ class SaveManager {
     this.save();
   }
 
+  // ---- Cosmetics (decal / rim / glow) ------------------------------------
+  getCosmetic(carId, type) {
+    const stored = this.current && this.current.carCosmetics && this.current.carCosmetics[carId];
+    return clampCosmetic(type, stored ? stored[type] : 0);
+  }
+
+  setCosmetic(carId, type, index) {
+    if (!this.current) return;
+    if (!this.current.carCosmetics) this.current.carCosmetics = {};
+    if (!this.current.carCosmetics[carId]) this.current.carCosmetics[carId] = {};
+    this.current.carCosmetics[carId][type] = clampCosmetic(type, index);
+    this.save();
+  }
+
+  // Resolved underglow colour for a car (cosmetic choice, or the car's accent).
+  getGlowColor(carId) {
+    const c = GLOWS[this.getCosmetic(carId, 'glow')].color;
+    return c != null ? c : CARS[carId]?.color ?? 0x19e3ff;
+  }
+
   // ---- Upgrades -----------------------------------------------------------
   getUpgrades(carId) {
     if (!this.current) return freshUpgrades();
@@ -234,7 +256,8 @@ class SaveManager {
     const cost = this.upgradeCost(carId, key);
     if (cost == null) return false;
     if (!this.spend(cost)) return false;
-    this.getUpgrades(carId)[key] += 1;
+    const u = this.getUpgrades(carId);
+    u[key] = (u[key] || 0) + 1; // || 0 so a key absent from older saves still increments
     this.save();
     return true;
   }

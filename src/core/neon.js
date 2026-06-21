@@ -3,7 +3,7 @@
 
 import Phaser from 'phaser';
 import { COLORS, mixColor } from '../config/theme.js';
-import { COLOR_SCHEMES, clampSchemeIndex } from '../config/cars.js';
+import { COLOR_SCHEMES, clampSchemeIndex, RIMS, DECALS, clampCosmetic } from '../config/cars.js';
 import { Save } from './SaveManager.js';
 
 // Apply a WebGL glow FX to a sprite/text/image. No-op on the Canvas renderer.
@@ -121,13 +121,18 @@ function resolveLivery(car, schemeIndex = 0) {
 // to the player's saved per-car choice (Save.getCarColor), or the car's stock
 // scheme when there's no profile. So every existing 2-arg call site keeps
 // working AND automatically reflects the chosen colour everywhere a car is drawn.
-export function makeCarTexture(scene, car, schemeIndex) {
+export function makeCarTexture(scene, car, schemeIndex, cosmetics) {
   const scheme =
     schemeIndex == null
       ? (Save && typeof Save.getCarColor === 'function' ? Save.getCarColor(car.id) : (car.stockScheme ?? 0))
       : schemeIndex;
   const sIdx = clampSchemeIndex(scheme);
-  const key = 'car_' + car.id + '_s' + sIdx;
+  const cos = cosmetics || {};
+  const readCos = (type) =>
+    cos[type] != null ? cos[type] : Save && typeof Save.getCosmetic === 'function' ? Save.getCosmetic(car.id, type) : 0;
+  const decalIdx = clampCosmetic('decal', readCos('decal'));
+  const rimIdx = clampCosmetic('rim', readCos('rim'));
+  const key = 'car_' + car.id + '_s' + sIdx + '_d' + decalIdx + '_r' + rimIdx;
   if (scene.textures.exists(key)) return key;
 
   const L = car.gfxLength || 96;
@@ -174,7 +179,8 @@ export function makeCarTexture(scene, car, schemeIndex) {
   // only the tyre poking out past the flanks for a planted, detailed look) ----
   const tyre = mixColor(COLORS.bgDeep, 0x000000, 0.2); // near-black rubber
   const tyreLit = mixColor(tyre, COLORS.white, 0.16);
-  const rim = mixColor(accent, COLORS.white, 0.35);
+  const rimChoice = RIMS[rimIdx] && RIMS[rimIdx].color;
+  const rim = rimChoice != null ? rimChoice : mixColor(accent, COLORS.white, 0.35);
   const wheelLen = snap(L * 0.2, px); // tyre footprint along the body
   const wheelHalf = wheelLen / 2;
   const wheelThick = snap(W * 0.16, px); // how far the tyre pokes out past the flank
@@ -341,6 +347,51 @@ export function makeCarTexture(scene, car, schemeIndex) {
   const lineCol = mixColor(bodyFlank, COLORS.bgDeep, 0.4);
   block(roofX0, -hw + px, wsX0, -hw + px * 2, lineCol);
   block(roofX0, hw - px * 2, wsX0, hw - px, lineCol);
+
+  // ---- 9. Cosmetic decal painted on top ----
+  if (decalIdx > 0) {
+    const dW = 0xf2f4ff; // decal white
+    const dD = 0x14151c; // decal dark
+    if (decalIdx === 1) {
+      const sw = snap(hw * 0.16, px); // single centre stripe
+      block(-hl + px * 2, -sw, hl - px * 2, sw, dW);
+    } else if (decalIdx === 2) {
+      const sw = snap(hw * 0.1, px); // twin stripes
+      const off = snap(hw * 0.27, px);
+      block(-hl + px * 2, off - sw, hl - px * 2, off + sw, dW);
+      block(-hl + px * 2, -off - sw, hl - px * 2, -off + sw, dW);
+    } else if (decalIdx === 3) {
+      const ox = cx - snap(hl * 0.05, px); // race roundel on the roof/door
+      const r = snap(hw * 0.5, px);
+      g.fillStyle(dW, 1);
+      g.fillCircle(ox, cy, r);
+      g.fillStyle(dD, 1);
+      g.fillCircle(ox, cy, r - px);
+      g.fillStyle(dW, 1);
+      g.fillCircle(ox, cy, r - px * 2);
+    } else if (decalIdx === 4) {
+      const x0 = snap(hl * 0.4, px); // checker band across the bonnet
+      const x1 = snap(hl * 0.78, px);
+      const yb = snap(hw * 0.5, px);
+      const cell = px * 3;
+      let r = 0;
+      for (let x = x0; x < x1; x += cell) {
+        let c = r % 2;
+        for (let y = -yb; y < yb; y += cell) {
+          block(x, y, x + cell, y + cell, c % 2 === 0 ? dW : dD);
+          c++;
+        }
+        r++;
+      }
+    } else if (decalIdx === 5) {
+      const ox = cx + snap(hl * 0.5, px); // rising-sun disc on the bonnet
+      const r = snap(hw * 0.46, px);
+      g.fillStyle(0xd61f3a, 1);
+      g.fillCircle(ox, cy, r);
+      g.fillStyle(dW, 1);
+      g.fillCircle(ox, cy, snap(r * 0.46, px));
+    }
+  }
 
   g.generateTexture(key, texW, texH);
   g.destroy();

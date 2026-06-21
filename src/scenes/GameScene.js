@@ -48,7 +48,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Persistent tire decals + a soft neon underglow that swells while drifting.
     this.skids = new SkidMarks(this, { carWidth: carDef.gfxWidth });
-    const glowKey = makeSoftCircle(this, 'uglow_' + carDef.id, 128, carDef.color);
+    const glowCol = Save.getGlowColor(carDef.id);
+    const glowKey = makeSoftCircle(this, 'uglow_' + carDef.id + '_' + glowCol, 128, glowCol);
     this.underglow = this.add
       .image(sp.x, sp.y, glowKey)
       .setBlendMode(Phaser.BlendModes.ADD)

@@ -48,9 +48,23 @@ export const UPGRADES = {
       { cost: 13000, value: 0.1 },
     ],
   },
+
+  // Turbo: multiplies the mini-turbo boost (fired on SPACE). value = boost power ×.
+  turbo: {
+    name: 'Turbo',
+    blurb: 'Stronger boost when you fire it.',
+    color: 0x39ff5e,
+    unit: '×',
+    levels: [
+      { cost: 0, value: 1.0 },
+      { cost: 2200, value: 1.18 },
+      { cost: 5000, value: 1.38 },
+      { cost: 9500, value: 1.62 },
+    ],
+  },
 };
 
-export const UPGRADE_ORDER = ['fuel', 'engine', 'tires'];
+export const UPGRADE_ORDER = ['fuel', 'engine', 'tires', 'turbo'];
 
 export function maxLevel(key) {
   return UPGRADES[key].levels.length - 1;

@@ -41,6 +41,42 @@ export function clampSchemeIndex(i) {
   return i;
 }
 
+// ---- Cosmetics (picked per car in the Garage STYLE tab) ----
+// Decals are painted on top of the body by makeCarTexture.
+export const DECALS = [
+  { name: 'None' },
+  { name: 'Stripe' },
+  { name: 'Twin' },
+  { name: 'Roundel' },
+  { name: 'Checker' },
+  { name: 'Rising Sun' },
+];
+// Rim colours override the wheel rims. null = the car's stock (accent-derived) rim.
+export const RIMS = [
+  { name: 'Stock', color: null },
+  { name: 'Gold', color: 0xd9b04a },
+  { name: 'White', color: 0xeef0f4 },
+  { name: 'Black', color: 0x202228 },
+  { name: 'Bronze', color: 0xa9763e },
+  { name: 'Red', color: 0xd64535 },
+];
+// Underglow colours. null = the car's own accent colour.
+export const GLOWS = [
+  { name: 'Stock', color: null },
+  { name: 'Cyan', color: 0x19e3ff },
+  { name: 'Pink', color: 0xff2d9b },
+  { name: 'Lime', color: 0x39ff5e },
+  { name: 'Amber', color: 0xffd23f },
+  { name: 'Violet', color: 0x9a6bff },
+];
+export const COSMETICS = { decal: DECALS, rim: RIMS, glow: GLOWS };
+
+export function clampCosmetic(type, i) {
+  const arr = COSMETICS[type];
+  if (!arr || !Number.isInteger(i) || i < 0 || i >= arr.length) return 0;
+  return i;
+}
+
 export const CARS = {
   ae86: {
     id: 'ae86',

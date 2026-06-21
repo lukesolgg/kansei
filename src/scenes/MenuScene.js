@@ -141,14 +141,15 @@ export default class MenuScene extends Phaser.Scene {
     this._heroAnim.shadow = shadow;
 
     // Underglow: a coloured pool beneath the car that pulses (idle neon vibe).
-    const underglow = this.add.ellipse(cx, cy + 70, 220, 56, car.color, 0.16)
+    const glowCol = Save.getGlowColor(car.id);
+    const underglow = this.add.ellipse(cx, cy + 70, 220, 56, glowCol, 0.16)
       .setBlendMode(Phaser.BlendModes.ADD);
     this.heroLayer.add(underglow);
     this._heroAnim.underglow = underglow;
 
     // The hero sprite itself, larger and spotlit.
     const sprite = this.add.image(cx, cy, key).setScale(1.86).setAngle(-16);
-    addGlow(sprite, car.color, 6, 0, 0.32);
+    addGlow(sprite, glowCol, 6, 0, 0.32);
     this.heroLayer.add(sprite);
     this._heroAnim.sprite = sprite;
     this._heroAnim.reflect = reflect;
