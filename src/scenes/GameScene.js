@@ -238,8 +238,15 @@ export default class GameScene extends Phaser.Scene {
   _hitRamp() {
     const c = this.car;
     if (c.airborne > 0 || c.speed < TUNING.rampMinSpeed) return;
-    c.jump(Phaser.Math.Clamp(c.speed / 480, 0.45, 1.15));
+    // Air time scales with approach speed; a forward launch carries you across the
+    // gap. Aim wide (drifting) at speed and you can cut a horseshoe; too slow and
+    // you fall short, back into the bend.
+    c.jump(Phaser.Math.Clamp(c.speed / 460, 0.5, TUNING.rampAirMax));
+    c.vx += Math.cos(c.heading) * TUNING.rampLaunch;
+    c.vy += Math.sin(c.heading) * TUNING.rampLaunch;
+    c.boost = Math.max(c.boost, 0.5);
     Audio.sfx('combo');
+    pulseBloom(this.fx, 1.5);
   }
 
   _hitTrash(sprite) {

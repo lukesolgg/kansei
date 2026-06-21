@@ -211,6 +211,17 @@ export class Car {
     this.vx = cos * this.forwardSpeed + latX * keep;
     this.vy = sin * this.forwardSpeed + latY * keep;
 
+    // --- Drift steering kick ---
+    // While sliding, A/D don't just rotate the car — they shove it bodily toward
+    // that side, so the drift bites and throws the car wide.
+    if (this.isDrifting && Math.abs(steer) > 0.05) {
+      const rx = -sin; // car's right direction (+steer = D)
+      const ry = cos;
+      const kick = steer * TUNING.driftSteerKick * this.speed * dt;
+      this.vx += rx * kick;
+      this.vy += ry * kick;
+    }
+
     // --- Drift-charge → boost (mini-turbo) ---
     if (handbrake && this.isDrifting && this.speed > 100) {
       this.driftCharge = Math.min(TUNING.driftBoostChargeMax, this.driftCharge + dt);

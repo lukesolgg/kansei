@@ -5,6 +5,7 @@
 import Phaser from 'phaser';
 import { COLORS, mixColor } from '../config/theme.js';
 import { makeSoftCircle } from '../core/neon.js';
+import { CityDecor } from './CityDecor.js';
 import { mulberry32, rangeRand } from '../core/rng.js';
 import { TUNING } from '../config/gameplay.js';
 
@@ -40,6 +41,7 @@ export class Track {
     this._computeBounds();
     this._drawBackground();
     this._drawRoad();
+    this.city = new CityDecor(this);
     this._drawStartFinish();
     this._placePickups();
     this._placeObstacles();

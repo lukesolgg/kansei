@@ -36,7 +36,11 @@ export const TUNING = {
 
   // Extra steering authority while already sliding — lets you swing the car wide
   // mid-drift to scythe around obstacles.
-  driftSteerGain: 0.8,
+  driftSteerGain: 1.25,
+  // While drifting, steering also SHOVES the car sideways in the steer direction
+  // (not just rotates it) — this is what makes a drift feel like it bites and
+  // throws the car wide. Scaled by speed.
+  driftSteerKick: 2.8,
   // Lifting off the throttle drops grip so the car slides freely.
   offThrottleGripMul: 0.55,
 
@@ -89,4 +93,6 @@ export const TUNING = {
   trashSlow: 0.7, // velocity multiplier when you clip a trash can (soft slow)
   boostPadPower: 135, // forward px/s kick from a booster pad
   rampMinSpeed: 120, // need at least this speed for a ramp to launch you
+  rampLaunch: 95, // forward px/s added on launch so a fast jump carries across a gap
+  rampAirMax: 1.35, // max seconds airborne (faster approach = longer flight)
 };
