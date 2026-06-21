@@ -1,5 +1,18 @@
 // The garage: six JDM legends. `phys` feeds the drift model in game/Car.js;
 // `stats` are 0–100 bars for the garage UI; `color` is the neon accent.
+//
+// `livery` drives the chunky 8-bit car sprite in core/neon.js. Shape:
+//   {
+//     body:   0xRRGGBB  – main paint colour of the bodywork
+//     roof:   0xRRGGBB  – optional roof colour (defaults to body)
+//     accent: 0xRRGGBB  – secondary/trim colour: hood scoop, rear strip, the
+//                         black flanks for 'panda', and the neon glow accent
+//     glass:  0xRRGGBB  – windscreen / window colour
+//     style: 'solid' | 'panda'  – 'panda' paints black lower flanks + white
+//                                 roof for the AE86 Trueno look
+//   }
+// `color` is still the menu/HUD neon accent, so it's kept in sync with the
+// livery's most representative colour.
 
 import { COLORS } from './theme.js';
 
@@ -10,8 +23,9 @@ export const CARS = {
     full: 'Hachi-Roku',
     chassis: 'Toyota Sprinter Trueno',
     price: 0, // starter car
-    color: COLORS.cyan,
+    color: 0xf2f4ff, // panda white reads as the menu/HUD accent
     lightColor: 0xffffff,
+    livery: { body: 0xf2f4ff, roof: 0xffffff, accent: 0x14151c, glass: 0x2a3550, style: 'panda' },
     blurb: 'Light, tossable, eternal. The tofu-shop legend that taught the world to drift.',
     gfxLength: 92,
     gfxWidth: 44,
@@ -28,6 +42,8 @@ export const CARS = {
     price: 4500,
     color: COLORS.pink,
     lightColor: 0xfff0ff,
+    // Silver bodywork with a hot-pink drift-team accent.
+    livery: { body: 0xc9d2e0, roof: 0xdfe6f0, accent: COLORS.pink, glass: 0x2c2540, style: 'solid' },
     blurb: 'The drifter’s drifter. Perfectly balanced — born sideways.',
     gfxLength: 96,
     gfxWidth: 46,
@@ -44,6 +60,8 @@ export const CARS = {
     price: 9000,
     color: COLORS.amber,
     lightColor: 0xfff6d0,
+    // White Altezza with gold accents.
+    livery: { body: 0xeef0f5, roof: 0xf6f8fc, accent: COLORS.amber, glass: 0x2b2a3a, style: 'solid' },
     blurb: 'Heavier and planted. Forgiving angle, smooth transitions, real-deal sedan.',
     gfxLength: 100,
     gfxWidth: 48,
@@ -58,8 +76,10 @@ export const CARS = {
     full: 'Efini FD3S',
     chassis: 'Mazda RX-7',
     price: 16000,
-    color: COLORS.purple,
+    color: COLORS.red,
     lightColor: 0xe6dcff,
+    // Efini RX-7 in deep red with a violet under-accent.
+    livery: { body: 0xd61f3a, roof: 0xe23a52, accent: COLORS.purple, glass: 0x241d3a, style: 'solid' },
     blurb: 'Rotary scream, knife-edge balance. Fast, light, and a little bit feral.',
     gfxLength: 98,
     gfxWidth: 46,
@@ -76,6 +96,8 @@ export const CARS = {
     price: 26000,
     color: COLORS.orange,
     lightColor: 0xffe0c0,
+    // Orange over black — aggressive muscle scheme.
+    livery: { body: COLORS.orange, roof: 0xff8c2e, accent: 0x16151c, glass: 0x241a14, style: 'solid' },
     blurb: 'Big torque, big slides. Muscle from the East — grunt over finesse.',
     gfxLength: 102,
     gfxWidth: 50,
@@ -92,6 +114,8 @@ export const CARS = {
     price: 42000,
     color: COLORS.lime,
     lightColor: 0xdfffe0,
+    // Classic white A80 with a lime-green 2JZ accent.
+    livery: { body: 0xeef4ee, roof: 0xf6faf6, accent: COLORS.lime, glass: 0x1e2a22, style: 'solid' },
     blurb: 'The 2JZ icon. Endless power, mountains of grip — the endgame ride.',
     gfxLength: 108,
     gfxWidth: 52,

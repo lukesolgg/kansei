@@ -251,6 +251,9 @@ export default class GameScene extends Phaser.Scene {
       this._pendingPickups.length = 0;
     }
 
+    // Bounce off the track-edge walls.
+    this._wallBounce();
+
     // Fuel burn (real time, so slow-mo doesn't refund fuel)
     if (hasFuel) {
       const burn = (TUNING.fuelIdleBurn + input.throttle * TUNING.fuelThrottleBurn) * this.carDef.phys.baseFuelBurn;
@@ -331,6 +334,29 @@ export default class GameScene extends Phaser.Scene {
     this.underglow.setAlpha(0.16 + 0.45 * (this.car.isDrifting ? slip01 : 0) + 0.14 * speed01);
   }
 
+  // Keep the car inside the track by bouncing it off the edge walls.
+  _wallBounce() {
+    const limit = this.track.half - this.carDef.gfxWidth * 0.42;
+    const info = this.track.edgeInfo(this.car.x, this.car.y);
+    if (info.dist <= limit) return;
+    const over = info.dist - limit;
+    // Shove the car back inside.
+    this.matter.body.setPosition(this.car.sprite.body, {
+      x: this.car.x + info.nx * over,
+      y: this.car.y + info.ny * over,
+    });
+    // Reflect the outward velocity component (bounce) + scrub a little speed.
+    const vn = this.car.vx * info.nx + this.car.vy * info.ny; // >0 = toward centre
+    if (vn < 0) {
+      const r = 0.35;
+      this.car.vx -= (1 + r) * vn * info.nx;
+      this.car.vy -= (1 + r) * vn * info.ny;
+    }
+    this.car.vx *= 0.88;
+    this.car.vy *= 0.88;
+    if (this.car.speed > 150) this.smoke.emitParticleAt(this.car.x, this.car.y, 2);
+  }
+
   _syncHud() {
     const h = this.hud;
     h.score = this.scorer.score;
@@ -397,7 +423,7 @@ export default class GameScene extends Phaser.Scene {
     const cashFromScore = Math.round(score * TUNING.cashPerScore);
     const cash = this.cashCollected + cashFromScore + TUNING.finishBonus + stars * TUNING.starBonus;
     this._finish({
-      cleared: true, stars, score, cash,
+      cleared: true, stars, score, cash, progress: 1,
       breakdown: { tokens: this.cashCollected, drift: cashFromScore, finish: TUNING.finishBonus, stars: stars * TUNING.starBonus },
       bestMultiplier: this.scorer.bestMultiplier,
     });
@@ -412,7 +438,7 @@ export default class GameScene extends Phaser.Scene {
     const cashFromScore = Math.round(score * TUNING.cashPerScore * 0.5);
     const cash = this.cashCollected + cashFromScore;
     this._finish({
-      cleared: false, stars: 0, score, cash,
+      cleared: false, stars: 0, score, cash, progress: this.track.progressFrac(),
       breakdown: { tokens: this.cashCollected, drift: cashFromScore, finish: 0, stars: 0 },
       bestMultiplier: this.scorer.bestMultiplier,
     });
@@ -421,13 +447,16 @@ export default class GameScene extends Phaser.Scene {
   _finish(result) {
     Save.addCash(result.cash);
     Save.recordLevel(this.levelId, { cleared: result.cleared, stars: result.stars, score: result.score });
-    this.cameras.main.flash(result.cleared ? 220 : 120, result.cleared ? 60 : 255, result.cleared ? 255 : 60, 120);
-    this.time.delayedCall(700, () => {
-      this.cameras.main.fadeOut(300, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.stop('HUDScene');
-        this.scene.start('ResultScene', { levelId: this.levelId, result });
-      });
+    if (Save.settings.shake) {
+      this.cameras.main.flash(result.cleared ? 220 : 120, result.cleared ? 60 : 255, result.cleared ? 255 : 60, 120);
+    }
+    this.cameras.main.fadeOut(620, 0, 0, 0);
+    // Transition on a fixed timer, NOT the camerafadeoutcomplete event — that
+    // event can stall when a post-FX pipeline is on the camera and leave the
+    // player stuck on a black screen.
+    this.time.delayedCall(760, () => {
+      this.scene.stop('HUDScene');
+      this.scene.start('ResultScene', { levelId: this.levelId, result });
     });
   }
 

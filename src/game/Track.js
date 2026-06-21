@@ -413,6 +413,17 @@ export class Track {
     return this._nearest(x, y).dist > this.half * 0.96;
   }
 
+  // Distance from the centreline + the unit vector pointing back toward it
+  // (inward normal). Used for the soft edge-walls.
+  edgeInfo(x, y) {
+    const n = this._nearest(x, y);
+    const p = this.path[n.index];
+    const dx = p.x - x;
+    const dy = p.y - y;
+    const d = Math.hypot(dx, dy) || 1;
+    return { dist: n.dist, nx: dx / d, ny: dy / d };
+  }
+
   progressFrac() {
     return this.maxProgress / (this.path.length - 1);
   }

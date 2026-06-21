@@ -13,13 +13,14 @@ export const TUNING = {
   // Steering: radians/sec at full lock, scaled by car.turn and speed factor.
   steerRate: 2.05,
   // Lateral grip: fraction of sideways velocity killed per second.
-  // Higher = sticks; lower = slides. Handbrake/throttle reduce effective grip.
-  gripKill: 7.5,
-  handbrakeGripMul: 0.18, // handbrake slashes grip → big slides
-  throttleGripMul: 0.7, // power-on reduces grip a bit (power-over drifts)
-  driftAngleForSlide: 0.18, // rad — beyond this heading/velocity gap you're "drifting"
-  minDriftSpeed: 90, // below this speed, no drift scoring
-  spinDriftAngle: 1.5, // rad — beyond this you've spun; combo breaks
+  // Higher = sticks; lower = slides. Lowered for an icy, slidey base feel.
+  gripKill: 4.2,
+  handbrakeGripMul: 0.05, // handbrake almost kills grip → the rear steps right out
+  handbrakeSteerBoost: 1.5, // handbrake also sharpens yaw so the tail snaps out
+  throttleGripMul: 0.6, // power-on reduces grip (power-over drifts)
+  driftAngleForSlide: 0.16, // rad — beyond this heading/velocity gap you're "drifting"
+  minDriftSpeed: 70, // below this speed, no drift scoring
+  spinDriftAngle: 1.9, // rad — beyond this you've spun; combo breaks
 
   // ---- Input feel (analog smoothing, units toward target per second) -----
   steerSmoothing: 7.0, // how fast steering eases toward the held direction
@@ -28,8 +29,8 @@ export const TUNING = {
   throttleRelease: 7.5, // throttle ramp-out when lifted
   // Counter-steer assist: gently aligns the nose to the travel direction so big
   // slides are catchable rather than spinning out — the key to a premium feel.
-  counterSteerAssist: 2.6, // rad/s max corrective yaw
-  counterSteerHandbrakeMul: 0.32, // assist is cut while the handbrake holds the slide
+  counterSteerAssist: 2.1, // rad/s max corrective yaw (lower = slidier/icier)
+  counterSteerHandbrakeMul: 0.1, // handbrake nearly disables the assist → big slides
 
   // ---- Hit-stop / slow-mo (time-scale juice) ----------------------------
   hitStopScale: 0.05, // near-freeze on impact
@@ -39,9 +40,9 @@ export const TUNING = {
 
   // ---- Fuel --------------------------------------------------------------
   // Units burned per second: idle baseline + throttle component.
-  fuelIdleBurn: 1.1,
-  fuelThrottleBurn: 3.2,
-  fuelRefill: 30, // per fuel can
+  fuelIdleBurn: 1.2,
+  fuelThrottleBurn: 3.8,
+  fuelRefill: 24, // per fuel can
   lowFuelWarn: 0.22, // fraction of tank that triggers the warning
 
   // ---- Scoring -----------------------------------------------------------

@@ -92,9 +92,18 @@ const RAW = [
   // ---- Neon Docks --------------------------------------------------------
   {
     id: 'docks-1', zone: 'docks', name: 'Harbor Warmup', order: 0,
-    roadWidth: 380, fuelStart: 0.7, scoreBronze: 6000, scoreGold: 13000,
-    fuelCans: 4, cashTokens: 8, obstacles: 4,
-    segments: [['s', 900], ['r', 60, 380], ['s', 520], ['l', 60, 380], ['s', 900]],
+    roadWidth: 360, fuelStart: 0.6, scoreBronze: 8000, scoreGold: 18000,
+    fuelCans: 4, cashTokens: 12, obstacles: 7,
+    // Technical switchback: straights linking 180° horseshoe hairpins.
+    segments: [
+      ['s', 600],
+      ['r', 180, 300],
+      ['s', 560],
+      ['l', 180, 300],
+      ['s', 560],
+      ['r', 180, 300],
+      ['s', 640],
+    ],
   },
   {
     id: 'docks-2', zone: 'docks', name: 'Container Run', order: 1,
@@ -154,6 +163,10 @@ export const LEVELS = RAW.map((lvl) => {
   const path = buildPath(lvl.segments, lvl.startAngle || 0);
   return {
     ...lvl,
+    // Tighter fuel economy: roughly half the cans and a leaner tank to start, so
+    // levels demand fuel upgrades + a few attempts rather than a single easy lap.
+    fuelCans: Math.max(1, Math.round(lvl.fuelCans * 0.5)),
+    fuelStart: Math.max(0.36, lvl.fuelStart - 0.12),
     zoneData: ZONES[lvl.zone],
     path,
     length: pathLength(path),

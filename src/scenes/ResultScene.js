@@ -53,9 +53,11 @@ export default class ResultScene extends Phaser.Scene {
     // Stats panel
     neonPanel(this, W / 2 - 280, 290, 560, 230, zone.accent, { fillAlpha: 0.45 });
     const bd = r.breakdown;
+    const distPct = Math.round((r.progress != null ? r.progress : r.cleared ? 1 : 0) * 100);
     const rows = [
       ['DRIFT SCORE', fmt(r.score), COLORS.white],
       ['BEST MULTIPLIER', 'x' + r.bestMultiplier.toFixed(1), COLORS.pink],
+      ['DISTANCE REACHED', distPct + '%', r.cleared ? COLORS.lime : COLORS.cyan],
       ['CASH PICKED UP', '$' + fmt(bd.tokens), COLORS.lime],
       ['DRIFT BONUS', '$' + fmt(bd.drift), COLORS.lime],
     ];
@@ -74,27 +76,33 @@ export default class ResultScene extends Phaser.Scene {
       .setShadow(0, 0, hex(COLORS.lime), 16, false, true);
     this.add.text(W / 2, 582, `Balance: $${fmt(Save.cash)}`, labelStyle(20, COLORS.textDim)).setOrigin(0.5);
 
-    // Buttons
+    // Buttons — RETRY / NEXT / GARAGE / STAGES. NEXT is always shown but greyed
+    // out until the level is actually cleared.
     const next = nextLevelId(this.levelId);
     const btnY = 650;
-    const hasNext = r.cleared && next;
-    const xs = hasNext ? [330, 540, 750, 950] : [400, 640, 880];
-    let i = 0;
-    neonButton(this, xs[i++], btnY, 190, 56, '↻ RETRY', { color: COLORS.amber, sfx: 'select' }, () => this._play(this.levelId));
-    if (hasNext) neonButton(this, xs[i++], btnY, 190, 56, 'NEXT ▶', { color: COLORS.lime, sfx: 'select' }, () => this._play(next));
-    neonButton(this, xs[i++], btnY, 190, 56, '🔧 GARAGE', { color: COLORS.cyan }, () => this._go('GarageScene'));
-    neonButton(this, xs[i++], btnY, 190, 56, '☰ STAGES', { color: COLORS.purple, sfx: 'back' }, () => this._go('LevelSelectScene'));
+    const xs = [330, 540, 750, 960];
+    neonButton(this, xs[0], btnY, 190, 56, '↻ RETRY', { color: COLORS.amber, sfx: 'select' }, () => this._play(this.levelId));
+    const nextBtn = neonButton(this, xs[1], btnY, 190, 56, 'NEXT ▶', { color: COLORS.lime, sfx: 'select' }, () => {
+      if (r.cleared && next) this._play(next);
+    });
+    if (!r.cleared || !next) nextBtn.setDisabled(true);
+    neonButton(this, xs[2], btnY, 190, 56, '🔧 GARAGE', { color: COLORS.cyan }, () => this._go('GarageScene'));
+    neonButton(this, xs[3], btnY, 190, 56, '☰ STAGES', { color: COLORS.purple, sfx: 'back' }, () => this._go('LevelSelectScene'));
+    if (!r.cleared) {
+      this.add.text(W / 2, btnY + 44, 'Clear the level to continue — try upgrading your car.', labelStyle(15, COLORS.textMute)).setOrigin(0.5);
+    }
   }
 
+  // Transition on a timer, not the fade-complete event (robust against post-FX).
   _play(levelId) {
     Audio.stopMusic();
     this.cameras.main.fadeOut(220, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('GameScene', { levelId }));
+    this.time.delayedCall(240, () => this.scene.start('GameScene', { levelId }));
   }
 
   _go(scene) {
     this.cameras.main.fadeOut(200, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(scene));
+    this.time.delayedCall(220, () => this.scene.start(scene));
   }
 
   update(_, delta) {

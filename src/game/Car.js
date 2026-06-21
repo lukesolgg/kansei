@@ -54,9 +54,13 @@ export class Car {
     this.sprite.setFixedRotation();
     this.sprite.setRotation(angle);
     this.sprite.setMass(p.mass * 40);
-    this.sprite.setDepth(20);
     this.sprite.body.gameObjectRef = this;
-    addGlow(this.sprite, carDef.color, 4, 0);
+    this.sprite.setVisible(false); // the matter sprite is the physics body only
+
+    // Separate visual sprite so we can lean/tilt it during drifts (to show the
+    // car's flank) without disturbing the collision body.
+    this.visual = scene.add.image(x, y, texKey).setDepth(20).setRotation(angle);
+    addGlow(this.visual, carDef.color, 4, 0);
 
     // Live read-outs for HUD / scorer / fx.
     this.speed = 0;
@@ -108,7 +112,9 @@ export class Car {
     const hs = (this.speed - this.phys.maxSpeed * 0.7) / (this.phys.maxSpeed * 0.5);
     speedFactor *= 1 - 0.3 * Phaser.Math.Clamp(hs, 0, 1);
     const dirSign = this.forwardSpeed < -12 ? -1 : 1;
-    this.heading += steer * TUNING.steerRate * this.phys.turn * speedFactor * dirSign * dt;
+    // Handbrake sharpens the yaw so the tail visibly kicks out.
+    const hbBoost = handbrake ? TUNING.handbrakeSteerBoost : 1;
+    this.heading += steer * TUNING.steerRate * this.phys.turn * speedFactor * dirSign * hbBoost * dt;
     this.heading = normAngle(this.heading);
     cos = Math.cos(this.heading);
     sin = Math.sin(this.heading);
@@ -205,6 +211,15 @@ export class Car {
       y: this.vy * STEP,
     });
     this.sprite.setRotation(this.heading);
+
+    // --- Sync the visual, leaning into the slide so the flank shows ---
+    const perpX = -Math.sin(this.heading);
+    const perpY = Math.cos(this.heading);
+    const lean = Phaser.Math.Clamp(this.slip * 9, -11, 11); // weight shifts outward
+    this.visual.setPosition(this.x + perpX * lean, this.y + perpY * lean);
+    this.visual.setRotation(this.heading);
+    const stretch = 1 + Math.min(0.1, this.effDrift * 0.12);
+    this.visual.setScale(stretch, 1 - Math.min(0.06, this.effDrift * 0.08));
   }
 
   // Bounce off an obstacle at (ox, oy): shove outward and bleed speed.
@@ -229,6 +244,8 @@ export class Car {
 
   destroy() {
     if (this.sprite) this.sprite.destroy();
+    if (this.visual) this.visual.destroy();
     this.sprite = null;
+    this.visual = null;
   }
 }

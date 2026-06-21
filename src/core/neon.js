@@ -1,6 +1,7 @@
 // Neon drawing helpers + procedural texture generation. Everything visual in the
 // game is built from code here: glow sprites, particles, and the JDM car silhouettes.
 
+import Phaser from 'phaser';
 import { COLORS, mixColor } from '../config/theme.js';
 
 // Apply a WebGL glow FX to a sprite/text/image. No-op on the Canvas renderer.
@@ -52,86 +53,215 @@ function hexA(colorInt, a) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-// Generate a top-down neon car texture for a given car definition.
-// The car points toward +x (so body length is along the X axis), matching the
-// physics convention where heading angle 0 means "facing right".
+// --- Chunky 8-bit car renderer ----------------------------------------------
+//
+// We build a recognisable top-down JDM sports car out of blocky shapes snapped
+// to a small pixel grid, then flip the texture to NEAREST filtering so it reads
+// as crisp 8-bit pixel art rather than a smooth vector. The car points +X
+// (forward = +X, length along the X axis) to match the physics convention.
+//
+// Layout along the body length (X), front is +X / right:
+//   rear bumper | trunk | rear glass | roof | windscreen | bonnet | nose
+// The body is shaded as three horizontal bands: a lighter centre "spine" (the
+// roof/bonnet crown) flanked by darker "flank" bands so the body looks like it
+// curves down to the sides. Those flank bands carry the accent colour so the
+// sprite still looks good when Car.js skews it to fake "seeing the side".
+
+// Snap a value to the nearest grid step (gives the blocky pixel look).
+function snap(v, step) {
+  return Math.round(v / step) * step;
+}
+
+// Resolve a car's livery into concrete colours with sensible fallbacks so the
+// renderer never has to branch on missing fields.
+function resolveLivery(car) {
+  const lv = car.livery || {};
+  const accent = car.color ?? COLORS.cyan;
+  const body = lv.body ?? mixColor(accent, COLORS.white, 0.15);
+  return {
+    style: lv.style || 'solid',
+    body,
+    roof: lv.roof ?? body,
+    accent: lv.accent ?? accent,
+    glass: lv.glass ?? mixColor(COLORS.cyan, COLORS.bgDeep, 0.45),
+    trim: lv.trim ?? COLORS.bgDeep,
+  };
+}
+
+// Generate a chunky 8-bit top-down car texture for a given car definition.
+// Keeps the texture key 'car_' + car.id and the +X forward convention.
 export function makeCarTexture(scene, car) {
   const key = 'car_' + car.id;
   if (scene.textures.exists(key)) return key;
 
   const L = car.gfxLength || 96;
   const W = car.gfxWidth || 46;
-  const pad = 14;
+  // Generous transparent padding: the sprite gets a glow and gets skewed during
+  // drifts, so it needs room to bleed without clipping.
+  const pad = 18;
   const texW = L + pad * 2;
   const texH = W + pad * 2;
   const cx = texW / 2;
   const cy = texH / 2;
-  const hl = L / 2;
-  const hw = W / 2;
 
-  const accent = car.color;
-  const body = mixColor(accent, COLORS.bgDeep, 0.78);
-  const cabinCol = mixColor(COLORS.cyan, COLORS.bgDeep, 0.55);
+  // Pixel grid: snapping to ~3px chunks is what sells the 8-bit look.
+  const px = 3;
+  const hl = snap(L / 2, px);
+  const hw = snap(W / 2, px);
 
-  // Shape factors let each chassis look a little different.
-  const s = car.shape || {};
-  const nose = s.nose ?? 0.32; // how pointed the front is (lower = sharper)
-  const cabF = s.cabinFront ?? 0.42;
-  const cabR = s.cabinRear ?? 0.2;
+  const lv = resolveLivery(car);
+  const isPanda = lv.style === 'panda';
+
+  // Derived shades for the three-band body shading.
+  const bodyMid = lv.body;
+  const bodySpine = mixColor(lv.body, COLORS.white, 0.22); // lit crown down the centre
+  const bodyFlank = mixColor(lv.body, COLORS.bgDeep, 0.4); // shadowed sides
+  const outline = mixColor(lv.body, COLORS.bgDeep, 0.78);
+  const accent = lv.accent;
+  const glass = lv.glass;
+  const glassLit = mixColor(glass, COLORS.white, 0.3);
 
   const g = scene.make.graphics({ x: 0, y: 0, add: false });
 
-  const P = (x, y) => ({ x: cx + x, y: cy + y });
-  const hull = [
-    P(-hl, -hw * 0.72),
-    P(-hl * 0.6, -hw),
-    P(hl * 0.25, -hw),
-    P(hl * 0.74, -hw * 0.82),
-    P(hl, -hw * nose),
-    P(hl, hw * nose),
-    P(hl * 0.74, hw * 0.82),
-    P(hl * 0.25, hw),
-    P(-hl * 0.6, hw),
-    P(-hl, hw * 0.72),
-  ];
+  // Helpers that draw axis-aligned blocks in car-local space (origin at centre).
+  // x runs along the length (+X forward), y across the width.
+  const block = (x0, y0, x1, y1, color, alpha = 1) => {
+    const ax = snap(x0, px);
+    const ay = snap(y0, px);
+    const bx = snap(x1, px);
+    const by = snap(y1, px);
+    g.fillStyle(color, alpha);
+    g.fillRect(cx + Math.min(ax, bx), cy + Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+  };
 
-  // Body fill + neon outline.
-  g.fillStyle(body, 1);
-  g.fillPoints(hull, true, true);
-  g.lineStyle(3, accent, 1);
-  g.strokePoints(hull, true, true);
+  // ---- 1. Body silhouette ----
+  // We paint the body as a stack of vertical pixel columns whose half-width
+  // tapers toward the nose and tail, giving a chamfered (blocky-rounded) car
+  // silhouette with transparent corners. Each column is shaded into three
+  // horizontal bands (flank / mid / lit spine) for top-down curvature.
 
-  // Center racing stripe.
-  g.lineStyle(2, mixColor(accent, COLORS.white, 0.4), 0.5);
-  g.beginPath();
-  g.moveTo(cx - hl * 0.55, cy);
-  g.lineTo(cx + hl * 0.7, cy);
-  g.strokePath();
+  // Width profile along the length: narrower at nose and tail (the car tapers).
+  // Returns half-width at a given local x.
+  const halfWidthAt = (x) => {
+    const t = x / hl; // -1 (rear) .. +1 (nose)
+    let w = hw;
+    if (t > 0.62) w = hw * (1 - (t - 0.62) / 0.38 * 0.34); // taper to nose
+    else if (t < -0.78) w = hw * (1 - (-t - 0.78) / 0.22 * 0.22); // slight tail taper
+    return snap(w, px);
+  };
 
-  // Cabin / glass.
-  const cabin = [
-    P(-hl * cabR, -hw * 0.6),
-    P(hl * cabF, -hw * 0.5),
-    P(hl * (cabF + 0.12), 0),
-    P(hl * cabF, hw * 0.5),
-    P(-hl * cabR, hw * 0.6),
-    P(-hl * (cabR + 0.18), 0),
-  ];
-  g.fillStyle(cabinCol, 0.9);
-  g.fillPoints(cabin, true, true);
-  g.lineStyle(2, COLORS.cyan, 0.8);
-  g.strokePoints(cabin, true, true);
+  // Paint the body as vertical pixel columns so the silhouette can taper.
+  for (let x = -hl; x < hl; x += px) {
+    const w = halfWidthAt(x + px / 2);
+    if (w <= 0) continue;
+    const xa = cx + x;
+    const wpx = px;
+    // outline column
+    g.fillStyle(outline, 1);
+    g.fillRect(xa, cy - w, wpx, w * 2);
+    const wi = Math.max(0, w - px);
+    if (wi <= 0) continue;
+    // flank band
+    g.fillStyle(bodyFlank, 1);
+    g.fillRect(xa, cy - wi, wpx, wi * 2);
+    // mid band
+    const wm = snap(wi * 0.74, px);
+    if (wm > 0) {
+      g.fillStyle(bodyMid, 1);
+      g.fillRect(xa, cy - wm, wpx, wm * 2);
+    }
+    // lit spine
+    const ws = snap(wi * 0.42, px);
+    if (ws > 0) {
+      g.fillStyle(bodySpine, 1);
+      g.fillRect(xa, cy - ws, wpx, ws * 2);
+    }
+  }
 
-  // Headlights (front / +x) and taillights (rear / -x).
-  g.fillStyle(car.lightColor || COLORS.white, 1);
-  g.fillCircle(cx + hl * 0.92, cy - hw * 0.45, 3.2);
-  g.fillCircle(cx + hl * 0.92, cy + hw * 0.45, 3.2);
-  g.fillStyle(COLORS.red, 1);
-  g.fillRect(cx - hl * 0.99, cy - hw * 0.62, 3, hw * 0.32);
-  g.fillRect(cx - hl * 0.99, cy + hw * 0.3, 3, hw * 0.32);
+  // ---- 2. Panda lower flanks (AE86) ----
+  // Black lower body band along both flanks + black bonnet accent.
+  if (isPanda) {
+    const blk = lv.accent; // black
+    for (let x = -hl; x < hl; x += px) {
+      const w = halfWidthAt(x + px / 2);
+      if (w <= 0) continue;
+      const xa = cx + x;
+      const bandTop = snap(w * 0.62, px);
+      g.fillStyle(blk, 1);
+      g.fillRect(xa, cy - w, px, w - bandTop); // upper flank black
+      g.fillRect(xa, cy + bandTop, px, w - bandTop); // lower flank black
+    }
+  }
+
+  // ---- 3. Bonnet (front) detailing: hood scoop / vent hint ----
+  const bonnetX0 = snap(hl * 0.42, px);
+  const bonnetX1 = snap(hl * 0.84, px);
+  // Bonnet shadow line.
+  block(bonnetX0, -hw * 0.5, bonnetX0 + px, hw * 0.5, outline, 0.6);
+  // Hood scoop: a small darker rectangle with a lighter lip.
+  const scoopColor = isPanda ? lv.accent : mixColor(bodyMid, COLORS.bgDeep, 0.5);
+  block(bonnetX0 + px * 2, -hw * 0.26, bonnetX1 - px, hw * 0.26, scoopColor);
+  block(bonnetX0 + px * 2, -hw * 0.16, bonnetX0 + px * 4, hw * 0.16, mixColor(scoopColor, COLORS.white, 0.25));
+
+  // ---- 4. Cabin: windscreen, roof, rear window ----
+  const wsX1 = snap(hl * 0.4, px); // windscreen front edge
+  const wsX0 = snap(hl * 0.12, px); // windscreen / roof boundary
+  const roofX0 = -snap(hl * 0.16, px); // roof rear edge
+  const rwX0 = -snap(hl * 0.46, px); // rear window rear edge
+  const cabHalf = snap(hw * 0.66, px);
+
+  // Pillars / cabin base (dark trim around the glass).
+  block(rwX0 - px, -cabHalf - px, wsX1 + px, cabHalf + px, lv.trim);
+
+  // Windscreen (raked: trapezoid faked with two stacked blocks).
+  block(wsX0, -cabHalf, wsX1, cabHalf, glass);
+  block(snap((wsX0 + wsX1) / 2, px), -snap(cabHalf * 0.7, px), wsX1, snap(cabHalf * 0.7, px), glassLit, 0.8);
+  // Roof (body colour, lit, central).
+  const roofCol = isPanda ? COLORS.white : mixColor(bodySpine, COLORS.white, 0.12);
+  block(roofX0, -cabHalf + px, wsX0, cabHalf - px, roofCol);
+  // Roof spine highlight.
+  block(roofX0, -snap(cabHalf * 0.4, px), wsX0, snap(cabHalf * 0.4, px), mixColor(roofCol, COLORS.white, 0.3));
+  // Rear window.
+  block(rwX0, -snap(cabHalf * 0.9, px), roofX0, snap(cabHalf * 0.9, px), glass);
+
+  // ---- 5. Side mirrors poking out near the windscreen base ----
+  const mirX = wsX1;
+  block(mirX, -hw - px * 2, mirX + px * 2, -hw + px, lv.trim);
+  block(mirX, hw - px, mirX + px * 2, hw + px * 2, lv.trim);
+
+  // ---- 6. Headlights (front / +x) ----
+  const headColor = car.lightColor || COLORS.white;
+  const noseX = halfWidthAt(hl - px) > 0 ? hl - px * 2 : hl - px * 3;
+  block(noseX, -hw * 0.66, hl - px, -hw * 0.3, headColor);
+  block(noseX, hw * 0.3, hl - px, hw * 0.66, headColor);
+  // Glow centre on each headlight.
+  block(noseX + px, -hw * 0.58, noseX + px * 2, -hw * 0.38, mixColor(headColor, COLORS.white, 0.5));
+  block(noseX + px, hw * 0.38, noseX + px * 2, hw * 0.58, mixColor(headColor, COLORS.white, 0.5));
+  // Front grille / lip accent.
+  block(hl - px, -hw * 0.22, hl, hw * 0.22, mixColor(accent, COLORS.bgDeep, 0.3));
+
+  // ---- 7. Tail-lights (rear / -x) ----
+  const tailX0 = -hl + px;
+  block(tailX0, -hw * 0.72, tailX0 + px * 2, -hw * 0.28, COLORS.red);
+  block(tailX0, hw * 0.28, tailX0 + px * 2, hw * 0.72, COLORS.red);
+  // Bright centre of each tail light.
+  block(tailX0, -hw * 0.6, tailX0 + px, -hw * 0.4, mixColor(COLORS.red, COLORS.white, 0.4));
+  block(tailX0, hw * 0.4, tailX0 + px, hw * 0.6, mixColor(COLORS.red, COLORS.white, 0.4));
+  // Rear accent strip between the lights.
+  block(tailX0, -hw * 0.2, tailX0 + px, hw * 0.2, accent);
+
+  // ---- 8. Door / character line on the flanks (sells the skew) ----
+  const lineCol = mixColor(bodyFlank, COLORS.bgDeep, 0.4);
+  block(roofX0, -hw + px, wsX0, -hw + px * 2, lineCol);
+  block(roofX0, hw - px * 2, wsX0, hw - px, lineCol);
 
   g.generateTexture(key, texW, texH);
   g.destroy();
+
+  // Crisp pixels: NEAREST filtering keeps the 8-bit blocks sharp when scaled,
+  // rotated, and skewed in-game.
+  const tex = scene.textures.get(key);
+  if (tex) tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
   return key;
 }
 
