@@ -14,42 +14,42 @@ export const TUNING = {
   steerRate: 2.05,
   // Lateral grip: fraction of sideways velocity killed per second.
   // Higher = sticks; lower = slides. Lowered for an icy, slidey base feel.
-  gripKill: 4.2,
-  handbrakeGripMul: 0.05, // handbrake almost kills grip → the rear steps right out
-  handbrakeSteerBoost: 1.5, // handbrake also sharpens yaw so the tail snaps out
-  throttleGripMul: 0.6, // power-on reduces grip (power-over drifts)
+  gripKill: 7.5, // base lateral grip — HIGH, so normal driving is grippy; drift comes from the handbrake
+  handbrakeGripMul: 0.06, // handbrake breaks traction → the rear steps out
+  handbrakeSteerBoost: 1.45, // handbrake sharpens the yaw so the tail snaps out
+  powerOverGrip: 0.5, // while handbraking, throttle further cuts grip → TIGHTER drift (hold W = tight, tap = wide)
+  coastDrag: 0.85, // extra drag off the throttle — lifting W slows you (engine braking)
   driftAngleForSlide: 0.16, // rad — beyond this heading/velocity gap you're "drifting"
-  minDriftSpeed: 70, // below this speed, no drift scoring
-  spinDriftAngle: 1.9, // rad — beyond this you've spun; combo breaks
+  minDriftSpeed: 70,
+  spinDriftAngle: 1.55, // rad — beyond this you've spun; combo breaks
 
   // ---- Input feel (analog smoothing, units toward target per second) -----
-  steerSmoothing: 7.0, // how fast steering eases toward the held direction
-  steerReturn: 10.0, // snappier return-to-centre when you let go
-  throttleRamp: 5.5, // keyboard throttle/brake ramp-in
-  throttleRelease: 7.5, // throttle ramp-out when lifted
-  // Counter-steer assist: gently aligns the nose to the travel direction so big
-  // slides are catchable. NOTE: in Car.js this assist now scales with THROTTLE —
-  // so lifting off lets the car keep rotating (clean ice-slide / 360 on exit),
-  // while staying on the gas keeps the drift catchable.
-  counterSteerAssist: 2.4, // rad/s max corrective yaw at full throttle
-  counterSteerHandbrakeMul: 0.12, // handbrake further loosens the assist
+  steerSmoothing: 7.0,
+  steerReturn: 10.0,
+  throttleRamp: 5.5,
+  throttleRelease: 7.5,
 
-  // Extra steering authority while already sliding — lets you swing the car wide
-  // mid-drift to scythe around obstacles.
-  driftSteerGain: 1.25,
-  // While drifting, steering also SHOVES the car sideways in the steer direction
-  // (not just rotates it) — this is what makes a drift feel like it bites and
-  // throws the car wide. Scaled by speed.
-  driftSteerKick: 2.8,
-  // Lifting off the throttle drops grip so the car slides freely.
-  offThrottleGripMul: 0.55,
+  // Extra steering authority while sliding (helps carry the car through a corner).
+  driftSteerGain: 1.1,
+  // Lateral wash — HANDBRAKE ONLY. The rear washes OUT (opposite the steer) so the
+  // car points into the corner but slides wide (real counter-steer feel).
+  driftSteerKick: 2.6,
 
-  // Anti-spin governor: a hard cap on the slip angle so the car can't spin out.
-  // The player can hold a big drift right up to the cap, then it firmly holds —
-  // get it right and you can drift the whole course.
-  maxDriftAngle: 0.78, // ~45° normal cornering slide
-  maxDriftAngleHandbrake: 1.15, // ~66° deep handbrake drift
-  antiSpinStrength: 10, // how firmly the heading is pulled back to the cap
+  // Drift angle cap (anti-spin). Depends on handbrake + throttle:
+  //   no handbrake        -> gripDriftCap (grippy, barely any slide)
+  //   handbrake + tap W    -> driftCapLow  (wide, shallow, long drift)
+  //   handbrake + hold W   -> driftCapHigh (tight, more angle)
+  gripDriftCap: 0.38,
+  driftCapLow: 0.42,
+  driftCapHigh: 0.82,
+  antiSpinEase: 0.5, // how hard the slip is eased back toward the cap
+
+  // Hold full throttle in a drift too long and the angle WINDS UP past control into
+  // a spin — so there's a balance point: feather W to hold a clean drift.
+  driftWindThrottle: 0.65, // throttle above this winds the drift up
+  driftWindRate: 0.5, // extra cap (rad) gained per second at full throttle
+  driftWindDecay: 2.2, // wind-down per second otherwise
+  driftWindMax: 1.1, // max extra angle — enough to tip you into a spin
 
   // Drift-charge → boost (mini-turbo): hold the handbrake in a slide to charge,
   // release for a forward blast that decays back to normal.

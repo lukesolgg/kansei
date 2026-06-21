@@ -80,6 +80,7 @@ export class Car {
     this.offTrack = false;
     this.crashCooldown = 0;
     this.effDrift = 0;
+    this.driftWind = 0; // winds up the drift-angle cap while pinning full throttle
     this.driftCharge = 0; // builds while sliding with the handbrake
     this.boost = 0; // current mini-turbo boost level (decays)
     this.boostFired = 0; // >0 on the frame a boost releases (for fx)
@@ -144,30 +145,30 @@ export class Car {
     cos = Math.cos(this.heading);
     sin = Math.sin(this.heading);
 
-    // --- Counter-steer assist (catchable slides) ---
-    // Gently aligns the nose toward the travel direction so the car naturally
-    // catches a slide when you ease off the input. Scaled down by how hard you're
-    // steering (player keeps control) and by the handbrake (so big drifts hold).
+    // --- Drift-angle governor (anti-spin lock with a throttle-set cap) ---
+    // The slip angle is eased back to a cap that depends on what you're doing:
+    //   no handbrake          -> tiny cap (grippy, barely slides)
+    //   handbrake + tap W      -> driftCapLow  (wide, shallow, long drift)
+    //   handbrake + hold W     -> driftCapHigh (tight, more angle)
+    //   handbrake + FULL W held -> the cap winds up (driftWind) past control into a
+    //                              spin, so feathering W is the balance point.
     if (this.speed > 55) {
       const travelAng = Math.atan2(this.vy, this.vx);
-      const slip = normAngle(travelAng - this.heading);
-      // Gentle counter-steer catch — helps settle the car when you ease off.
-      let assist = TUNING.counterSteerAssist * (1 - Math.abs(steer)) * (0.35 + 0.65 * throttle);
-      if (handbrake) assist *= TUNING.counterSteerHandbrakeMul;
-      this.heading += Phaser.Math.Clamp(slip, -0.7, 0.7) * assist * dt;
-
-      // Anti-spin LOCK: hard-clamp the slip angle to the cap (eased so it doesn't
-      // snap). You can drift right up to the cap and hold it, but the car simply
-      // cannot rotate past it — no more instant spin-outs.
-      const cap = handbrake ? TUNING.maxDriftAngleHandbrake : TUNING.maxDriftAngle;
-      const slip2 = normAngle(travelAng - this.heading);
-      if (Math.abs(slip2) > cap) {
-        const target = normAngle(travelAng - Math.sign(slip2) * cap);
-        this.heading = normAngle(this.heading + normAngle(target - this.heading) * 0.55);
+      if (handbrake && throttle > TUNING.driftWindThrottle && this.driftAngle > 0.3 && this.speed > 110) {
+        this.driftWind = Math.min(TUNING.driftWindMax, this.driftWind + TUNING.driftWindRate * dt);
+      } else {
+        this.driftWind = Math.max(0, this.driftWind - TUNING.driftWindDecay * dt);
       }
-      this.heading = normAngle(this.heading);
-      cos = Math.cos(this.heading);
-      sin = Math.sin(this.heading);
+      const cap = handbrake
+        ? TUNING.driftCapLow + throttle * (TUNING.driftCapHigh - TUNING.driftCapLow) + this.driftWind
+        : TUNING.gripDriftCap;
+      const slip = normAngle(travelAng - this.heading);
+      if (Math.abs(slip) > cap) {
+        const target = normAngle(travelAng - Math.sign(slip) * cap);
+        this.heading = normAngle(this.heading + normAngle(target - this.heading) * TUNING.antiSpinEase);
+        cos = Math.cos(this.heading);
+        sin = Math.sin(this.heading);
+      }
     }
 
     // --- Engine / brake along the forward axis ---
@@ -192,31 +193,35 @@ export class Car {
       }
     }
 
-    // --- Rolling + off-track drag ---
-    const drag = TUNING.rollDrag + (this.offTrack ? TUNING.offTrackDrag : 0);
+    // --- Rolling + off-track drag (+ engine braking off the throttle) ---
+    let drag = TUNING.rollDrag + (this.offTrack ? TUNING.offTrackDrag : 0);
+    if (throttle < 0.1 && this.forwardSpeed > 0) drag += TUNING.coastDrag; // lift W = slow down
     const dragK = Math.max(0, 1 - drag * dt);
     this.vx *= dragK;
     this.vy *= dragK;
 
     // --- Lateral grip (the heart of the drift) ---
+    // High base grip = grippy normal driving. The handbrake breaks traction; while
+    // it's held, MORE throttle cuts grip further → a tighter drift (tap = wide).
     this.forwardSpeed = this.vx * cos + this.vy * sin;
     const latX = this.vx - cos * this.forwardSpeed;
     const latY = this.vy - sin * this.forwardSpeed;
     let gripMul = 1;
-    if (handbrake) gripMul *= TUNING.handbrakeGripMul;
-    if (throttle > 0.15) gripMul *= TUNING.throttleGripMul;
-    else if (throttle < 0.1) gripMul *= TUNING.offThrottleGripMul; // lift-off = slidier
+    if (handbrake) {
+      gripMul *= TUNING.handbrakeGripMul;
+      gripMul *= 1 - TUNING.powerOverGrip * throttle;
+    }
     const gripKill = TUNING.gripKill * this.phys.grip * gripMul;
     const keep = Math.max(0, 1 - gripKill * dt);
     this.vx = cos * this.forwardSpeed + latX * keep;
     this.vy = sin * this.forwardSpeed + latY * keep;
 
-    // --- Drift steering: rear wash-out (real counter-steer physics) ---
-    // Steering into the slide angles the nose that way (handled above), but the
-    // car's body washes OUT the OPPOSITE way — turn in to the left and the rear
-    // steps out to the right, so the car points into the corner yet slides wide.
-    // You then counter-steer to hold it. (kick is NEGATED vs. the steer side.)
-    if (this.isDrifting && Math.abs(steer) > 0.05) {
+    // --- Drift steering: rear wash-out (HANDBRAKE ONLY, real counter-steer) ---
+    // Only while the handbrake is held does steering shove the car sideways: the
+    // rear washes OUT the OPPOSITE way to the steer (turn in left -> slide right),
+    // so you point into the corner yet slide wide and counter-steer to hold it.
+    // Without the handbrake, A/D just steer normally (no sideways slide).
+    if (handbrake && this.speed > TUNING.minDriftSpeed && Math.abs(steer) > 0.05) {
       const rx = -sin; // car's right direction (+steer = D)
       const ry = cos;
       const kick = -steer * TUNING.driftSteerKick * this.speed * dt;
