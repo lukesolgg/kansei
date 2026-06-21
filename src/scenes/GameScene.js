@@ -14,6 +14,7 @@ import { makeSoftCircle } from '../core/neon.js';
 import { applyGameplayFX, setSpeedFX, pulseBloom } from '../core/fx.js';
 import { fmt } from '../ui/widgets.js';
 import { xpForRun } from '../core/leveling.js';
+import { getDailyChallenge } from '../core/daily.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -151,6 +152,12 @@ export default class GameScene extends Phaser.Scene {
 
   _countdown() {
     const cam = this.cameras.main;
+    // Controls reminder, shown during the 3-2-1 then faded out.
+    const hint = this.add
+      .text(this.scale.width / 2, this.scale.height - 116, 'WASD drive   ·   SHIFT drift   ·   SPACE boost   ·   tap A / D to flick for speed', labelStyle(20, COLORS.text))
+      .setOrigin(0.5).setDepth(60).setScrollFactor(0).setAlpha(0).setShadow(0, 0, hex(COLORS.cyan), 8, false, true);
+    this.tweens.add({ targets: hint, alpha: 1, duration: 400 });
+    this.time.delayedCall(2300, () => this.tweens.add({ targets: hint, alpha: 0, duration: 400, onComplete: () => hint.destroy() }));
     const mk = (txt, color, delay) =>
       this.time.delayedCall(delay, () => {
         if (!this.scene.isActive()) return;
@@ -612,6 +619,13 @@ export default class GameScene extends Phaser.Scene {
       const lv = Save.addXp(gained);
       result.xpGained = gained;
       result.leveledUp = lv && lv.leveledUp ? lv.newLevel : 0;
+    } catch (_) {}
+    // Daily challenge: featured level + score target, paid once per day.
+    try {
+      const daily = getDailyChallenge();
+      if (this.levelId === daily.levelId && result.score >= daily.target && !Save.isDailyDone(daily.dayKey)) {
+        if (Save.completeDaily(daily.dayKey, daily.reward)) result.dailyComplete = daily.reward;
+      }
     } catch (_) {}
     this.scene.stop('HUDScene');
     if (Save.settings.shake) {

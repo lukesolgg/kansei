@@ -9,6 +9,7 @@ import { CarParkBackdrop } from '../ui/CarParkBackdrop.js';
 import { MenuAmbiance, cinematicFrame } from '../ui/MenuAmbiance.js';
 import { applyMenuFX } from '../core/fx.js';
 import { LEVELS } from '../config/levels.js';
+import { getDailyChallenge } from '../core/daily.js';
 
 // Blue lock tint for cars the player doesn't own yet.
 const LOCK_TINT = 0x3a6dff;
@@ -518,46 +519,52 @@ export default class MenuScene extends Phaser.Scene {
       .setOrigin(0, 0).setShadow(0, 2, '#000000', 4, false, true));
     layer.add(this.add.text(22, 66, daily.detail, labelStyle(14, COLORS.textDim)).setOrigin(0, 0));
 
-    // Reward chip on the right.
+    // Reward / DONE chip on the right.
     const chip = this.add.graphics();
-    drawNeonRoundRect(chip, w - 132, 28, 110, 40, 10, COLORS.lime, {
-      fill: mixColor(COLORS.asphalt, COLORS.lime, 0.1), fillAlpha: 0.95, lineWidth: 2, glow: true, glowAlpha: 0.26,
+    const chipCol = daily.done ? COLORS.amber : COLORS.lime;
+    drawNeonRoundRect(chip, w - 132, 28, 110, 40, 10, chipCol, {
+      fill: mixColor(COLORS.asphalt, chipCol, 0.1), fillAlpha: 0.95, lineWidth: 2, glow: true, glowAlpha: 0.26,
     });
     layer.add(chip);
-    layer.add(this.add.text(w - 77, 40, 'REWARD', labelStyle(10, COLORS.textDim)).setOrigin(0.5).setLetterSpacing(2));
-    layer.add(this.add.text(w - 77, 56, `+$${fmt(daily.reward)}`, { ...titleStyle(17), color: hex(COLORS.lime) }).setOrigin(0.5));
+    if (daily.done) {
+      layer.add(this.add.text(w - 77, 48, '✓ DONE', { ...titleStyle(18), color: hex(COLORS.amber) }).setOrigin(0.5));
+    } else {
+      layer.add(this.add.text(w - 77, 40, 'REWARD', labelStyle(10, COLORS.textDim)).setOrigin(0.5).setLetterSpacing(2));
+      layer.add(this.add.text(w - 77, 56, `+$${fmt(daily.reward)}`, { ...titleStyle(17), color: hex(COLORS.lime) }).setOrigin(0.5));
+    }
 
-    // Make the whole card a shortcut into the featured level's zone.
+    // Click jumps straight into today's featured run.
     const zone = this.add.zone(w / 2, h / 2, w, h).setOrigin(0.5).setInteractive({ useHandCursor: true });
     zone.on('pointerover', () => this.tweens.add({ targets: layer, scale: 1.015, duration: 100 }));
     zone.on('pointerout', () => this.tweens.add({ targets: layer, scale: 1, duration: 100 }));
-    zone.on('pointerup', () => { Audio.sfx('click'); this._go('LevelSelectScene'); });
+    zone.on('pointerup', () => {
+      Audio.resume();
+      Audio.sfx('select');
+      Audio.stopMusic();
+      this.cameras.main.fadeOut(220, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('GameScene', { levelId: daily.levelId }));
+    });
     layer.add(zone);
 
     this.engagementLayer = layer;
   }
 
-  // Deterministic "daily" pick keyed to the calendar day so it's stable for a
-  // day but rotates. Falls back gracefully if level data is unexpected.
+  // Today's challenge (shared with GameScene so completion is consistent).
   _dailyChallenge() {
-    const day = Math.floor(Date.now() / 86400000);
-    const list = (LEVELS && LEVELS.length) ? LEVELS : [{ name: 'Genten — Free Run', scoreGold: 48000 }];
-    const lvl = list[day % list.length] || list[0];
-    const targets = [25000, 40000, 50000, 60000, 75000];
-    const target = lvl.scoreGold ? Math.round(lvl.scoreGold * 1.05 / 1000) * 1000 : targets[day % targets.length];
-    const reward = 2000 + (day % 4) * 750;
-    const name = (lvl.name || 'Free Run').replace(/—/g, '·');
+    const d = getDailyChallenge();
+    const done = Save.isDailyDone(d.dayKey);
     return {
-      title: `${fmt(target)} pts in ${name}`,
-      detail: 'Set a score on today\'s featured run',
-      reward,
+      ...d,
+      done,
+      title: `${fmt(d.target)} pts · ${d.name}`,
+      detail: done ? 'Completed today — back tomorrow!' : 'Beat today\'s featured score target',
     };
   }
 
   // ---- Bottom hint -------------------------------------------------------
   _hint() {
     this.hint = this.add.text(this.scale.width / 2, this.scale.height - 38,
-      'Click a car to select  ·  ‹ ›  to browse  ·  hold SPACE in-game to drift',
+      'Click a car to select  ·  ‹ ›  to browse  ·  in-game: SHIFT drifts, SPACE boosts',
       labelStyle(15, COLORS.textDim)).setOrigin(0.5).setDepth(30).setLetterSpacing(1);
   }
 

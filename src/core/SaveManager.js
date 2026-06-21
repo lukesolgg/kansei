@@ -43,6 +43,8 @@ function blankProfile(name, pin) {
     carColors: {},
     // Per-car cosmetics: { ae86: { decal:1, rim:2, glow:0 }, ... }
     carCosmetics: {},
+    // Day-key of the last completed daily challenge (null = none yet).
+    dailyDone: null,
     // Per-level progress: { 'docks-1': { cleared:true, stars:2, bestScore:12345 } }
     levels: {},
     settings: { ...DEFAULT_SETTINGS },
@@ -231,6 +233,19 @@ class SaveManager {
   getGlowColor(carId) {
     const c = GLOWS[this.getCosmetic(carId, 'glow')].color;
     return c != null ? c : CARS[carId]?.color ?? 0x19e3ff;
+  }
+
+  // ---- Daily challenge ---------------------------------------------------
+  isDailyDone(dayKey) {
+    return !!this.current && this.current.dailyDone === dayKey;
+  }
+
+  // Mark today's daily complete and pay the reward (once).
+  completeDaily(dayKey, reward) {
+    if (!this.current || this.current.dailyDone === dayKey) return false;
+    this.current.dailyDone = dayKey;
+    this.addCash(reward || 0); // addCash saves
+    return true;
   }
 
   // ---- Upgrades -----------------------------------------------------------

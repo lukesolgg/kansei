@@ -109,6 +109,14 @@ export default class ResultScene extends Phaser.Scene {
       }
     }
 
+    // Daily challenge celebration (paid once per day in GameScene._finish).
+    if (r.dailyComplete) {
+      const d = this.add.text(W / 2, 176, `◈ DAILY CHALLENGE!   + $${fmt(r.dailyComplete)}`, { ...titleStyle(24), color: hex(COLORS.pink) })
+        .setOrigin(0.5).setShadow(0, 0, hex(COLORS.pink), 14, false, true).setScale(0);
+      this.tweens.add({ targets: d, scale: 1, ease: 'Back.out', duration: 460, delay: 650 });
+      this.time.delayedCall(720, () => { try { Audio.sfx('shortcut'); } catch (_) {} });
+    }
+
     // Buttons — RETRY / NEXT / GARAGE / STAGES. NEXT is always shown but greyed
     // out until the level is actually cleared.
     const next = nextLevelId(this.levelId);
