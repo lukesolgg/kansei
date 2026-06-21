@@ -20,7 +20,7 @@ export const TUNING = {
   coastDrag: 0.85, // extra drag off the throttle — lifting W slows you (engine braking)
   driftAngleForSlide: 0.16, // rad — beyond this heading/velocity gap you're "drifting"
   minDriftSpeed: 70,
-  spinDriftAngle: 1.55, // rad — beyond this you've spun; combo breaks
+  spinDriftAngle: 1.2, // rad (~69°) — wind past this and you've spun out; combo breaks
 
   // ---- Input feel (analog smoothing, units toward target per second) -----
   steerSmoothing: 7.0,
@@ -38,17 +38,19 @@ export const TUNING = {
   //   no handbrake        -> gripDriftCap (grippy, barely any slide)
   //   handbrake + tap W    -> driftCapLow  (wide, shallow, long drift)
   //   handbrake + hold W   -> driftCapHigh (tight, more angle)
-  gripDriftCap: 0.38,
-  driftCapLow: 0.42,
-  driftCapHigh: 0.82,
-  antiSpinEase: 0.5, // how hard the slip is eased back toward the cap
+  gripDriftCap: 0.32,
+  driftCapLow: 0.3, // hold A fully + tap W = this much angle (less twitchy than before)
+  driftCapHigh: 0.6, // hold A fully + hold W = the balance point
+  antiSpinEase: 0.5,
+  driftScrub: 0.45, // small speed scrub per radian of slide (grip now mostly REDIRECTS momentum, not kills it)
+  spinRecoverBoost: 95, // small forward nudge once you straighten out after a spin
 
   // Hold full throttle in a drift too long and the angle WINDS UP past control into
   // a spin — so there's a balance point: feather W to hold a clean drift.
   driftWindThrottle: 0.65, // throttle above this winds the drift up
-  driftWindRate: 0.5, // extra cap (rad) gained per second at full throttle
+  driftWindRate: 0.8, // extra angle (rad) gained per second at full throttle
   driftWindDecay: 2.2, // wind-down per second otherwise
-  driftWindMax: 1.1, // max extra angle — enough to tip you into a spin
+  driftWindMax: 1.8, // pin full throttle ~1.5s and the wind-up tips you past the spin point
 
   // Drift-charge → boost (mini-turbo): hold the handbrake in a slide to charge,
   // release for a forward blast that decays back to normal.

@@ -10,9 +10,14 @@ import { makeCarTexture, addGlow, makeSoftCircle } from '../core/neon.js';
 // Matter expresses velocity in pixels-per-step. At ~60fps that's px/sec ÷ 60.
 const STEP = 1 / 60;
 
+const TWO_PI = Math.PI * 2;
 function normAngle(a) {
-  while (a > Math.PI) a -= Math.PI * 2;
-  while (a < -Math.PI) a += Math.PI * 2;
+  // Modulo (not a while-loop) + a finite guard: a NaN/Infinity here used to hang
+  // the old `while` loops forever, freezing the whole game.
+  if (!Number.isFinite(a)) return 0;
+  a %= TWO_PI;
+  if (a > Math.PI) a -= TWO_PI;
+  else if (a < -Math.PI) a += TWO_PI;
   return a;
 }
 
@@ -80,7 +85,8 @@ export class Car {
     this.offTrack = false;
     this.crashCooldown = 0;
     this.effDrift = 0;
-    this._lastSteerDir = 1; // last steer side — the drift kicks out toward it
+    this._spunOut = false; // tracks a spin so we can give a recovery nudge
+    this.recoverFired = false;
     this.driftWind = 0; // winds up the drift-angle cap while pinning full throttle
     this.driftCharge = 0; // builds while sliding with the handbrake
     this.boost = 0; // current mini-turbo boost level (decays)
@@ -135,10 +141,6 @@ export class Car {
     speedFactor *= 1 - 0.3 * Phaser.Math.Clamp(hs, 0, 1);
     const dirSign = this.forwardSpeed < -12 ? -1 : 1;
 
-    // Remember the last steer direction (persists when you let go) — a drift kicks
-    // the tail out toward this side.
-    if (Math.abs(steer) > 0.15) this._lastSteerDir = Math.sign(steer);
-
     const travelAng = Math.atan2(this.vy, this.vx);
     const drifting = handbrake && this.speed > TUNING.minDriftSpeed;
 
@@ -151,9 +153,10 @@ export class Car {
         this.driftWind = Math.max(0, this.driftWind - TUNING.driftWindDecay * dt);
       }
       const mag = TUNING.driftCapLow + throttle * (TUNING.driftCapHigh - TUNING.driftCapLow) + this.driftWind;
-      const steerDir = Math.abs(steer) > 0.15 ? Math.sign(steer) : this._lastSteerDir || 1;
-      // A (steer -1) -> left drift (+slip = nose left of travel, tail out right).
-      const targetSlip = -steerDir * mag;
+      // Steer sets the angle ANALOG: hold A toward the balance point, RELEASE and
+      // the target goes to 0 so the car straightens out (and the engine pulls speed
+      // back). A (steer -1) -> left drift (+slip = nose left of travel, tail out right).
+      const targetSlip = -steer * mag;
       const desiredHeading = normAngle(travelAng - targetSlip);
       // Ease the nose toward the target slip. Flip the steer and the tail swings
       // THROUGH centre to the other side — a smooth feint, never an instant snap.
@@ -204,17 +207,23 @@ export class Car {
     this.vx *= dragK;
     this.vy *= dragK;
 
-    // --- Lateral grip (the heart of the drift) ---
-    // High base grip = grippy normal driving. The handbrake breaks traction; while
-    // it's held, MORE throttle cuts grip further → a tighter drift (tap = wide).
-    this.forwardSpeed = this.vx * cos + this.vy * sin;
-    const latX = this.vx - cos * this.forwardSpeed;
-    const latY = this.vy - sin * this.forwardSpeed;
+    // --- Grip: rotate velocity toward heading (keeps momentum), don't scrub it ---
+    // Grip ROTATES the velocity toward where the car points (carving) rather than
+    // killing the sideways component — so a drift carries its speed instead of
+    // bleeding it. A small scrub proportional to the slide keeps it honest.
     const gripMul = handbrake ? TUNING.handbrakeGripMul : 1;
     const gripKill = TUNING.gripKill * this.phys.grip * gripMul;
-    const keep = Math.max(0, 1 - gripKill * dt);
-    this.vx = cos * this.forwardSpeed + latX * keep;
-    this.vy = sin * this.forwardSpeed + latY * keep;
+    const speed0 = Math.hypot(this.vx, this.vy);
+    if (speed0 > 1) {
+      const velAng = Math.atan2(this.vy, this.vx);
+      const toward = normAngle(this.heading - velAng); // how far velocity is off the nose
+      const rot = toward * Math.min(1, gripKill * dt);
+      const newSpeed = speed0 * Math.max(0, 1 - Math.abs(toward) * TUNING.driftScrub * dt);
+      const na = velAng + rot;
+      this.vx = Math.cos(na) * newSpeed;
+      this.vy = Math.sin(na) * newSpeed;
+    }
+    this.forwardSpeed = this.vx * cos + this.vy * sin;
 
     // --- Drift-charge → boost (mini-turbo) ---
     if (handbrake && this.isDrifting && this.speed > 100) {
@@ -264,6 +273,24 @@ export class Car {
       !this.isSpinning &&
       this.crashCooldown <= 0;
     this.effDrift = effDrift;
+
+    // --- Spin recovery: after a spin-out, once you straighten + slow down, a small
+    // nudge to get going again (deliberately less than holding a clean drift). ---
+    this.recoverFired = false;
+    if (this.isSpinning) this._spunOut = true;
+    if (this._spunOut && this.driftAngle < 0.35 && this.speed < 110) {
+      this.vx += Math.cos(this.heading) * TUNING.spinRecoverBoost;
+      this.vy += Math.sin(this.heading) * TUNING.spinRecoverBoost;
+      this._spunOut = false;
+      this.recoverFired = true;
+    }
+
+    // --- Safety: never let a NaN/Infinity reach Matter (it can hang the solver) ---
+    if (!Number.isFinite(this.vx) || !Number.isFinite(this.vy)) {
+      this.vx = 0;
+      this.vy = 0;
+    }
+    if (!Number.isFinite(this.heading)) this.heading = 0;
 
     // --- Push to the Matter body ---
     this.scene.matter.body.setVelocity(this.sprite.body, {

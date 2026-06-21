@@ -273,6 +273,17 @@ export default class GameScene extends Phaser.Scene {
 
   // ---- Main loop ---------------------------------------------------------
   update(time, delta) {
+    // Never let a gameplay exception kill the requestAnimationFrame loop (which
+    // freezes the whole game). Log it and end the run safely instead.
+    try {
+      this._update(time, delta);
+    } catch (e) {
+      console.error('[KANSEI] update error — ending the run safely:', e);
+      if (this.state === 'play' && !this._finishing) this._lose();
+    }
+  }
+
+  _update(time, delta) {
     const realDt = Math.min(0.05, delta / 1000);
 
     if (this.input2.pausePressed() && this.state === 'play') {
@@ -326,6 +337,11 @@ export default class GameScene extends Phaser.Scene {
 
     // Mini-turbo release
     if (this.car.boostFired > 0) this._onBoost(this.car.boostFired);
+    // Spin-recovery nudge
+    if (this.car.recoverFired) {
+      Audio.sfx('combo');
+      this.smoke.emitParticleAt(this.car.x, this.car.y, 6);
+    }
 
     // FX
     this._effects(realDt);
