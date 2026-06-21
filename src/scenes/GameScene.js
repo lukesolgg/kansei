@@ -95,10 +95,17 @@ export default class GameScene extends Phaser.Scene {
     this._countdown();
 
     this.events.once('shutdown', () => {
-      Audio.stopEngine();
-      Audio.setIntensity(0);
-      if (this.skids) this.skids.destroy();
-      this.matter.world.off('collisionstart', this._onCollide, this);
+      // Guard everything: by shutdown the matter world may already be torn down,
+      // and a throw here aborts the scene stop and leaves NO scene active (black
+      // screen). This was the real cause of the win/lose end-screen never showing.
+      try { Audio.stopEngine(); } catch (_) {}
+      try { Audio.setIntensity(0); } catch (_) {}
+      try { if (this.skids) this.skids.destroy(); } catch (_) {}
+      try {
+        if (this.matter && this.matter.world) {
+          this.matter.world.off('collisionstart', this._onCollide, this);
+        }
+      } catch (_) {}
     });
   }
 

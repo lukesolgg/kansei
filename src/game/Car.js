@@ -131,19 +131,26 @@ export class Car {
     // Gently aligns the nose toward the travel direction so the car naturally
     // catches a slide when you ease off the input. Scaled down by how hard you're
     // steering (player keeps control) and by the handbrake (so big drifts hold).
-    if (this.speed > 60 && this.forwardSpeed > 0) {
+    if (this.speed > 55) {
       const travelAng = Math.atan2(this.vy, this.vx);
       const slip = normAngle(travelAng - this.heading);
-      if (Math.abs(slip) < 1.4) {
-        // Assist scales with throttle: on the gas it catches the slide; lift off
-        // and it lets go so the car keeps rotating (clean ice-slide / 360 on exit).
-        let assist = TUNING.counterSteerAssist * (1 - Math.abs(steer)) * throttle;
-        if (handbrake) assist *= TUNING.counterSteerHandbrakeMul;
-        this.heading += Phaser.Math.Clamp(slip, -0.7, 0.7) * assist * dt;
-        this.heading = normAngle(this.heading);
-        cos = Math.cos(this.heading);
-        sin = Math.sin(this.heading);
+      // Gentle counter-steer catch — helps settle the car when you ease off.
+      let assist = TUNING.counterSteerAssist * (1 - Math.abs(steer)) * (0.35 + 0.65 * throttle);
+      if (handbrake) assist *= TUNING.counterSteerHandbrakeMul;
+      this.heading += Phaser.Math.Clamp(slip, -0.7, 0.7) * assist * dt;
+
+      // Anti-spin LOCK: hard-clamp the slip angle to the cap (eased so it doesn't
+      // snap). You can drift right up to the cap and hold it, but the car simply
+      // cannot rotate past it — no more instant spin-outs.
+      const cap = handbrake ? TUNING.maxDriftAngleHandbrake : TUNING.maxDriftAngle;
+      const slip2 = normAngle(travelAng - this.heading);
+      if (Math.abs(slip2) > cap) {
+        const target = normAngle(travelAng - Math.sign(slip2) * cap);
+        this.heading = normAngle(this.heading + normAngle(target - this.heading) * 0.55);
       }
+      this.heading = normAngle(this.heading);
+      cos = Math.cos(this.heading);
+      sin = Math.sin(this.heading);
     }
 
     // --- Engine / brake along the forward axis ---

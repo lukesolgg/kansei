@@ -37,8 +37,15 @@ export const TUNING = {
   // Extra steering authority while already sliding — lets you swing the car wide
   // mid-drift to scythe around obstacles.
   driftSteerGain: 0.8,
-  // Lifting off the throttle drops grip so the car slides freely (360s on exit).
-  offThrottleGripMul: 0.5,
+  // Lifting off the throttle drops grip so the car slides freely.
+  offThrottleGripMul: 0.55,
+
+  // Anti-spin governor: a hard cap on the slip angle so the car can't spin out.
+  // The player can hold a big drift right up to the cap, then it firmly holds —
+  // get it right and you can drift the whole course.
+  maxDriftAngle: 0.78, // ~45° normal cornering slide
+  maxDriftAngleHandbrake: 1.15, // ~66° deep handbrake drift
+  antiSpinStrength: 10, // how firmly the heading is pulled back to the cap
 
   // Drift-charge → boost (mini-turbo): hold the handbrake in a slide to charge,
   // release for a forward blast that decays back to normal.
