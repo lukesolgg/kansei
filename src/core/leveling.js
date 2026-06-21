@@ -13,16 +13,6 @@ export function xpForLevel(n) {
   return Math.round(base + step * Math.pow(lvl - 1, 1.35));
 }
 
-// Total cumulative XP needed to be sitting exactly at the start of `level`.
-// Level 1 starts at 0 XP. Cached growth is fine here — levels stay small.
-export function totalXpForLevel(level) {
-  let total = 0;
-  for (let n = 1; n < Math.max(1, Math.floor(level)); n++) {
-    total += xpForLevel(n);
-  }
-  return total;
-}
-
 // Resolve a cumulative XP value into a level + progress toward the next level.
 //   { level, xpInto, xpForNext, progress }  progress is 0..1
 export function getLevelFromXp(xp) {

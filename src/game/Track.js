@@ -515,12 +515,12 @@ export class Track {
   }
 
   progressFrac() {
-    return this.maxProgress / (this.path.length - 1);
+    return this.maxProgress / Math.max(1, this.path.length - 1);
   }
 
   // Position around a loop, 0..1 (current nearest index / length). For lap tracking.
   loopFrac(x, y) {
-    return this._nearest(x, y).index / (this.path.length - 1);
+    return this._nearest(x, y).index / Math.max(1, this.path.length - 1);
   }
 
   isFinished(x, y) {

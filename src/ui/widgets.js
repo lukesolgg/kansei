@@ -18,11 +18,11 @@ export function neonButton(scene, x, y, w, h, label, opts = {}, onClick) {
     g.clear();
     const col = disabled ? COLORS.textMute : color;
     drawNeonRoundRect(g, -w / 2, -h / 2, w, h, radius, col, {
-      fill: hover && !disabled ? col : COLORS.panel,
-      fillAlpha: hover && !disabled ? 0.24 : 0.55,
+      fill: hover && !disabled ? col : COLORS.asphaltDark,
+      fillAlpha: hover && !disabled ? 0.28 : 0.82,
       lineWidth: 2,
       glow: !disabled,
-      glowAlpha: hover ? 0.32 : 0.16,
+      glowAlpha: hover ? 0.3 : 0.14,
     });
   };
   draw(false);
@@ -86,8 +86,8 @@ export function neonButton(scene, x, y, w, h, label, opts = {}, onClick) {
 export function neonPanel(scene, x, y, w, h, color = COLORS.purple, opts = {}) {
   const g = scene.add.graphics();
   drawNeonRoundRect(g, x, y, w, h, opts.radius ?? 16, color, {
-    fill: opts.fill ?? COLORS.panel,
-    fillAlpha: opts.fillAlpha ?? 0.55,
+    fill: opts.fill ?? COLORS.asphaltDark,
+    fillAlpha: opts.fillAlpha ?? 0.8,
     lineWidth: opts.lineWidth ?? 2,
     glow: opts.glow ?? true,
     glowAlpha: opts.glowAlpha ?? 0.14,

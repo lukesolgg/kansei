@@ -33,10 +33,6 @@ export const COLORS = {
   lamp: 0xffca6e, // warm sodium lamp glow
 };
 
-// String versions for CSS / DOM-ish usage and quick reference.
-export const HEX = Object.fromEntries(
-  Object.entries(COLORS).map(([k, v]) => [k, '#' + v.toString(16).padStart(6, '0')]),
-);
 
 export const FONTS = {
   display: 'Orbitron, sans-serif',

@@ -54,7 +54,7 @@ function pathLength(pts) {
   return len;
 }
 
-export const ZONES = {
+const ZONES = {
   docks: {
     id: 'docks',
     name: 'Neon Docks',
@@ -237,11 +237,4 @@ export function getLevelById(id) {
 export function nextLevelId(id) {
   const i = LEVELS.findIndex((l) => l.id === id);
   return i >= 0 && i < LEVELS.length - 1 ? LEVELS[i + 1].id : null;
-}
-
-export function levelsByZone() {
-  const out = {};
-  for (const z of Object.keys(ZONES)) out[z] = [];
-  for (const l of LEVELS) out[l.zone].push(l);
-  return out;
 }

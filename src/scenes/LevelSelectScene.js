@@ -15,7 +15,7 @@ export default class LevelSelectScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.fadeIn(200, 0, 0, 0);
-    this.backdrop = new Backdrop(this, { sunTop: COLORS.cyan, sunBot: COLORS.purple, grid: COLORS.purple });
+    this.backdrop = new Backdrop(this, { sunTop: COLORS.lamp, sunBot: COLORS.amber, grid: COLORS.kerb });
     scanlines(this);
     applyMenuFX(this.cameras.main);
     this.layer = this.add.container(0, 0);

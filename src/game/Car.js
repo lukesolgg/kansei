@@ -122,7 +122,7 @@ export class Car {
   // input: { throttle 0..1, brake 0..1, steer -1..1, handbrake bool }
   // hasFuel: if false, engine produces no power.
   update(dt, input, hasFuel) {
-    if (dt <= 0) return;
+    if (!Number.isFinite(dt) || dt <= 0) return;
     if (this.crashCooldown > 0) this.crashCooldown -= dt;
 
     this.justLanded = false;

@@ -14,7 +14,7 @@ export default class ProfileScene extends Phaser.Scene {
   }
 
   create() {
-    this.backdrop = new Backdrop(this, { sunTop: COLORS.cyan, sunBot: COLORS.pink, grid: COLORS.purple });
+    this.backdrop = new Backdrop(this, { sunTop: COLORS.lamp, sunBot: COLORS.amber, grid: COLORS.kerb });
     scanlines(this);
     applyMenuFX(this.cameras.main);
 

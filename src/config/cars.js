@@ -158,7 +158,3 @@ export const CARS = {
 
 export const CAR_ORDER = ['ae86', 's15', 'is200', 'fd', 'z370', 'supra'];
 export const STARTER_CAR = 'ae86';
-
-export function carList() {
-  return CAR_ORDER.map((id) => CARS[id]);
-}

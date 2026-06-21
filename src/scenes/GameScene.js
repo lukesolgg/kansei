@@ -293,7 +293,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Recover the time-scale toward normal (hit-stop / slow-mo juice).
     if (this.timeScale < 1) this.timeScale = Math.min(1, this.timeScale + realDt * this._tsRecover);
-    if (this.matter.world.engine) this.matter.world.engine.timing.timeScale = this.timeScale;
+    const eng = this.matter && this.matter.world && this.matter.world.engine;
+    if (eng && eng.timing) eng.timing.timeScale = this.timeScale;
     const dt = realDt * this.timeScale;
 
     if (this.state === 'intro') {

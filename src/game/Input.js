@@ -60,6 +60,8 @@ export class InputController {
       });
     }
     this._prevStart = false;
+    // Reused each frame so read() doesn't allocate a fresh command object.
+    this._cmd = { throttle: 0, brake: 0, steer: 0, steerRaw: 0, handbrake: false, boost: false };
   }
 
   _gamepad() {
@@ -124,14 +126,14 @@ export class InputController {
     );
     this.brake = approach(this.brake, brkTarget, TUNING.throttleRamp * dt);
 
-    return {
-      throttle: this.throttle,
-      brake: this.brake,
-      steer: this.steer,
-      steerRaw: steerTarget,
-      handbrake: hb,
-      boost,
-    };
+    const cmd = this._cmd;
+    cmd.throttle = this.throttle;
+    cmd.brake = this.brake;
+    cmd.steer = this.steer;
+    cmd.steerRaw = steerTarget;
+    cmd.handbrake = hb;
+    cmd.boost = boost;
+    return cmd;
   }
 
   // Gamepad Start only — keyboard pause is handled by an edge-triggered keydown
