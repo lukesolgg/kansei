@@ -21,6 +21,22 @@ export const TUNING = {
   minDriftSpeed: 90, // below this speed, no drift scoring
   spinDriftAngle: 1.5, // rad — beyond this you've spun; combo breaks
 
+  // ---- Input feel (analog smoothing, units toward target per second) -----
+  steerSmoothing: 7.0, // how fast steering eases toward the held direction
+  steerReturn: 10.0, // snappier return-to-centre when you let go
+  throttleRamp: 5.5, // keyboard throttle/brake ramp-in
+  throttleRelease: 7.5, // throttle ramp-out when lifted
+  // Counter-steer assist: gently aligns the nose to the travel direction so big
+  // slides are catchable rather than spinning out — the key to a premium feel.
+  counterSteerAssist: 2.6, // rad/s max corrective yaw
+  counterSteerHandbrakeMul: 0.32, // assist is cut while the handbrake holds the slide
+
+  // ---- Hit-stop / slow-mo (time-scale juice) ----------------------------
+  hitStopScale: 0.05, // near-freeze on impact
+  hitStopRecover: 6.0, // time-scale units/sec back to normal
+  bankSlowmoScale: 0.45, // brief dip when banking a huge combo
+  bankSlowmoRecover: 4.0,
+
   // ---- Fuel --------------------------------------------------------------
   // Units burned per second: idle baseline + throttle component.
   fuelIdleBurn: 1.1,

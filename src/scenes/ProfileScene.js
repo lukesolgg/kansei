@@ -6,6 +6,7 @@ import { COLORS, FONTS, hex, titleStyle, labelStyle } from '../config/theme.js';
 import { makeCarTexture, drawNeonRoundRect } from '../core/neon.js';
 import { neonButton, scanlines, fmt, starRow } from '../ui/widgets.js';
 import { Backdrop } from '../ui/backdrop.js';
+import { applyMenuFX } from '../core/fx.js';
 
 export default class ProfileScene extends Phaser.Scene {
   constructor() {
@@ -15,6 +16,7 @@ export default class ProfileScene extends Phaser.Scene {
   create() {
     this.backdrop = new Backdrop(this, { sunTop: COLORS.cyan, sunBot: COLORS.pink, grid: COLORS.purple });
     scanlines(this);
+    applyMenuFX(this.cameras.main);
 
     this.add
       .text(640, 78, 'KANSEI', { ...titleStyle(74), color: hex(COLORS.white) })

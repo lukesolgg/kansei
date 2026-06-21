@@ -9,7 +9,10 @@ import { Track } from '../game/Track.js';
 import { Car } from '../game/Car.js';
 import { DriftScorer } from '../game/DriftScorer.js';
 import { InputController, resetTouch } from '../game/Input.js';
+import { SkidMarks } from '../game/SkidMarks.js';
 import { neonButton } from '../ui/widgets.js';
+import { makeSoftCircle } from '../core/neon.js';
+import { applyGameplayFX, setSpeedFX, pulseBloom } from '../core/fx.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -39,6 +42,16 @@ export default class GameScene extends Phaser.Scene {
     const sp = this.track.spawn();
     this.car = new Car(this, sp.x, sp.y, sp.angle, carDef, ups);
 
+    // Persistent tire decals + a soft neon underglow that swells while drifting.
+    this.skids = new SkidMarks(this, { carWidth: carDef.gfxWidth });
+    const glowKey = makeSoftCircle(this, 'uglow_' + carDef.id, 128, carDef.color);
+    this.underglow = this.add
+      .image(sp.x, sp.y, glowKey)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(19)
+      .setScale((carDef.gfxLength / 128) * 1.7)
+      .setAlpha(0.2);
+
     this.scorer = new DriftScorer();
     this.input2 = new InputController(this);
 
@@ -51,10 +64,19 @@ export default class GameScene extends Phaser.Scene {
     // Particles
     this._particles();
 
-    // Camera follow
+    // Camera follow + neon post-processing (bloom / vignette / colour grade)
     this.cameras.main.startFollow(this.car.sprite, true, 0.09, 0.09);
     this.cameras.main.setZoom(0.95);
     this.targetZoom = 0.95;
+    this.fx = Save.settings.postfx
+      ? applyGameplayFX(this.cameras.main, { saturation: 1.18 })
+      : { bloom: null, vignette: null, grade: null };
+    this._camOffX = 0;
+    this._camOffY = 0;
+
+    // Time-scale for hit-stop / slow-mo juice (1 = normal).
+    this.timeScale = 1;
+    this._tsRecover = TUNING.hitStopRecover;
 
     // Collisions
     this.matter.world.on('collisionstart', this._onCollide, this);
@@ -71,6 +93,8 @@ export default class GameScene extends Phaser.Scene {
 
     this.events.once('shutdown', () => {
       Audio.stopEngine();
+      Audio.setIntensity(0);
+      if (this.skids) this.skids.destroy();
       this.matter.world.off('collisionstart', this._onCollide, this);
     });
   }
@@ -90,10 +114,6 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _particles() {
-    this.skid = this.add.particles(0, 0, 'spark', {
-      lifespan: 3500, speed: 0, scale: { start: 1.7, end: 1.5 },
-      alpha: { start: 0.3, end: 0.1 }, tint: 0x07060d, emitting: false,
-    }).setDepth(2);
     this.smoke = this.add.particles(0, 0, 'spark', {
       lifespan: 520, speed: { min: 10, max: 70 }, angle: { min: 0, max: 360 },
       scale: { start: 0.9, end: 3.4 }, alpha: { start: 0.45, end: 0 },
@@ -177,7 +197,8 @@ export default class GameScene extends Phaser.Scene {
       this.scorer.crash();
       Audio.sfx('crash');
       this.sparks.emitParticleAt(this.car.x, this.car.y, 18);
-      this.cameras.main.shake(TUNING.crashShakeMs, 0.012);
+      if (Save.settings.shake) this.cameras.main.shake(TUNING.crashShakeMs, 0.016);
+      if (!Save.settings.reduceMotion) this._hitStop(TUNING.hitStopScale, TUNING.hitStopRecover);
     }
   }
 
@@ -189,73 +210,109 @@ export default class GameScene extends Phaser.Scene {
 
   // ---- Main loop ---------------------------------------------------------
   update(time, delta) {
-    const dt = Math.min(0.05, delta / 1000);
+    const realDt = Math.min(0.05, delta / 1000);
 
     if (this.input2.pausePressed() && this.state === 'play') {
       this._togglePause();
     }
     if (this.paused) return;
 
+    // Recover the time-scale toward normal (hit-stop / slow-mo juice).
+    if (this.timeScale < 1) this.timeScale = Math.min(1, this.timeScale + realDt * this._tsRecover);
+    if (this.matter.world.engine) this.matter.world.engine.timing.timeScale = this.timeScale;
+    const dt = realDt * this.timeScale;
+
     if (this.state === 'intro') {
       Audio.updateEngine(0.08, 0);
-      this._syncHud(0);
+      this._syncHud();
       return;
     }
     if (this.state === 'over') return;
 
-    const input = this.input2.read();
+    const input = this.input2.read(realDt);
     const hasFuel = this.fuel > 0;
 
     this.car.offTrack = this.track.isOffTrack(this.car.x, this.car.y);
     this.car.update(dt, input, hasFuel);
 
-    // Fuel burn
+    // Fuel burn (real time, so slow-mo doesn't refund fuel)
     if (hasFuel) {
       const burn = (TUNING.fuelIdleBurn + input.throttle * TUNING.fuelThrottleBurn) * this.carDef.phys.baseFuelBurn;
-      this.fuel = Math.max(0, this.fuel - burn * dt);
+      this.fuel = Math.max(0, this.fuel - burn * realDt);
     }
 
     // Scoring
     this.scorer.update(dt, this.car);
     const banked = this.scorer.consumeBanked();
     if (banked > 200) this._popup(this.car.x, this.car.y, `+${Math.round(banked)}`, COLORS.cyan);
+    if (banked > 2500) this._bankSlowmo();
 
     // FX
-    this._effects(dt);
+    this._effects(realDt);
 
-    // Audio
+    // Audio — engine + slip-driven squeal, and swell the music with the combo.
     Audio.updateEngine(this.car.rev() * (hasFuel ? 1 : 0.2), this.car.isDrifting ? Math.min(1, this.car.effDrift / 1.4) : 0);
+    Audio.setIntensity(Math.min(1, (this.scorer.multiplier - 1) / 6));
 
-    // Camera zoom by speed
-    this.targetZoom = 0.95 - 0.2 * Math.min(1, this.car.speed / this.car.phys.maxSpeed);
-    const cam = this.cameras.main;
-    cam.setZoom(cam.zoom + (this.targetZoom - cam.zoom) * 0.05);
+    this._updateCamera();
 
-    // End conditions
+    // End conditions (timers use real time)
     if (this.track.isFinished(this.car.x, this.car.y)) {
       this._win();
     } else if (!hasFuel) {
-      if (this.car.speed < 26) this.strandTimer += dt;
+      if (this.car.speed < 26) this.strandTimer += realDt;
       else this.strandTimer = 0;
       if (this.strandTimer > 1.1) this._lose();
     } else {
       this.strandTimer = 0;
     }
 
-    this._syncHud(dt);
+    this._syncHud();
   }
 
-  _effects(dt) {
+  _updateCamera() {
+    const cam = this.cameras.main;
+    // Zoom out a little with speed for a sense of pace.
+    this.targetZoom = 0.95 - 0.2 * Math.min(1, this.car.speed / this.car.phys.maxSpeed);
+    cam.setZoom(cam.zoom + (this.targetZoom - cam.zoom) * 0.05);
+    // Lookahead toward the direction of travel (drift framing).
+    const look = Math.min(150, this.car.speed * 0.4);
+    const ang = Math.atan2(this.car.vy, this.car.vx);
+    const tx = -Math.cos(ang) * look;
+    const ty = -Math.sin(ang) * look;
+    this._camOffX += (tx - this._camOffX) * 0.05;
+    this._camOffY += (ty - this._camOffY) * 0.05;
+    cam.setFollowOffset(this._camOffX, this._camOffY);
+    setSpeedFX(this.fx, Math.min(1, this.car.speed / this.car.phys.maxSpeed));
+  }
+
+  _hitStop(scale, recover) {
+    this.timeScale = scale;
+    this._tsRecover = recover;
+  }
+
+  _bankSlowmo() {
+    if (this.timeScale < 0.99) return; // don't stack on an active hit-stop
+    this.timeScale = TUNING.bankSlowmoScale;
+    this._tsRecover = TUNING.bankSlowmoRecover;
+  }
+
+  _effects() {
     const rear = this.car.rearAxle();
+    const slip01 = Math.min(1, this.car.effDrift / 1.0);
     if (this.car.isDrifting) {
       this.smoke.emitParticleAt(rear.x, rear.y, 1);
-      if (Math.random() < 0.8) this.skid.emitParticleAt(rear.x, rear.y, 1);
+      this.skids.emit(rear.x, rear.y, this.car.heading, slip01);
     }
     if (this.car.offTrack && this.car.speed > 60 && Math.random() < 0.4) {
       this.smoke.setParticleTint(0x5a4a30);
       this.smoke.emitParticleAt(rear.x, rear.y, 1);
       this.smoke.setParticleTint(0xece6ff);
     }
+    // Underglow follows the car and brightens with speed + drift.
+    this.underglow.setPosition(this.car.x, this.car.y);
+    const speed01 = Math.min(1, this.car.speed / this.car.phys.maxSpeed);
+    this.underglow.setAlpha(0.16 + 0.45 * (this.car.isDrifting ? slip01 : 0) + 0.14 * speed01);
   }
 
   _syncHud() {
@@ -314,6 +371,7 @@ export default class GameScene extends Phaser.Scene {
   _win() {
     if (this.state === 'over') return;
     this.state = 'over';
+    pulseBloom(this.fx, 2.4);
     Audio.stopEngine();
     Audio.sfx('win');
     const score = this.scorer.score;

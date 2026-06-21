@@ -6,6 +6,7 @@ import { COLORS, hex, titleStyle, labelStyle } from '../config/theme.js';
 import { makeCarTexture, addGlow } from '../core/neon.js';
 import { neonButton, scanlines, fmt } from '../ui/widgets.js';
 import { Backdrop } from '../ui/backdrop.js';
+import { applyMenuFX } from '../core/fx.js';
 
 export default class MenuScene extends Phaser.Scene {
   constructor() {
@@ -20,6 +21,7 @@ export default class MenuScene extends Phaser.Scene {
     this.cameras.main.fadeIn(220, 0, 0, 0);
     this.backdrop = new Backdrop(this, { sunTop: COLORS.amber, sunBot: COLORS.pink, grid: COLORS.purple });
     scanlines(this);
+    applyMenuFX(this.cameras.main);
 
     // Title
     this.add.text(360, 150, 'KANSEI', { ...titleStyle(96), color: hex(COLORS.white) })
@@ -31,20 +33,20 @@ export default class MenuScene extends Phaser.Scene {
 
     // Buttons
     const bx = 360;
-    let by = 340;
-    const step = 78;
-    neonButton(this, bx, by, 360, 64, '▶  DRIVE', { color: COLORS.lime, fontSize: 30, sfx: 'select' }, () => this._go('LevelSelectScene'));
-    neonButton(this, bx, by + step, 360, 64, '🔧  GARAGE', { color: COLORS.cyan, fontSize: 28 }, () => this._go('GarageScene'));
-    neonButton(this, bx, by + step * 2, 360, 64, '👤  SWITCH DRIVER', { color: COLORS.purple, fontSize: 24 }, () => {
+    const by = 326;
+    const step = 70;
+    neonButton(this, bx, by, 360, 60, '▶  DRIVE', { color: COLORS.lime, fontSize: 28, sfx: 'select' }, () => this._go('LevelSelectScene'));
+    neonButton(this, bx, by + step, 360, 60, '🔧  GARAGE', { color: COLORS.cyan, fontSize: 26 }, () => this._go('GarageScene'));
+    neonButton(this, bx, by + step * 2, 360, 60, '⚙  SETTINGS', { color: COLORS.amber, fontSize: 24 }, () => this._go('SettingsScene'));
+    neonButton(this, bx, by + step * 3, 360, 60, '👤  SWITCH DRIVER', { color: COLORS.purple, fontSize: 22 }, () => {
       Save.logout();
       this._go('ProfileScene');
     });
 
     // Profile chip (top-right)
     this._profileChip();
-    this._settings();
 
-    this.add.text(640, 698, 'Hold SPACE to drift · W/A/S/D or arrows to drive', labelStyle(17, COLORS.textDim))
+    this.add.text(640, 700, 'Hold SPACE to drift · W/A/S/D, arrows or a gamepad to drive', labelStyle(17, COLORS.textDim))
       .setOrigin(0.5);
 
     // Resume audio + music on first gesture.

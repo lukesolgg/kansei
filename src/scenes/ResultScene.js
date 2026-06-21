@@ -6,6 +6,7 @@ import { COLORS, hex, titleStyle, labelStyle } from '../config/theme.js';
 import { drawStar } from '../ui/widgets.js';
 import { neonButton, neonPanel, scanlines, fmt } from '../ui/widgets.js';
 import { Backdrop } from '../ui/backdrop.js';
+import { applyMenuFX } from '../core/fx.js';
 
 export default class ResultScene extends Phaser.Scene {
   constructor() {
@@ -24,6 +25,7 @@ export default class ResultScene extends Phaser.Scene {
     const r = this.result;
     this.backdrop = new Backdrop(this, { sunTop: r.cleared ? COLORS.lime : COLORS.red, sunBot: zone.accent, grid: zone.accent });
     scanlines(this);
+    applyMenuFX(this.cameras.main);
     Audio.resume();
     Audio.startMusic();
 

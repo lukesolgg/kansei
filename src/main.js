@@ -10,6 +10,7 @@ import LevelSelectScene from './scenes/LevelSelectScene.js';
 import GameScene from './scenes/GameScene.js';
 import HUDScene from './scenes/HUDScene.js';
 import ResultScene from './scenes/ResultScene.js';
+import SettingsScene from './scenes/SettingsScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -25,6 +26,9 @@ const config = {
     antialias: true,
     roundPixels: false,
     powerPreference: 'high-performance',
+  },
+  input: {
+    gamepad: true,
   },
   physics: {
     default: 'matter',
@@ -42,6 +46,7 @@ const config = {
     GameScene,
     HUDScene,
     ResultScene,
+    SettingsScene,
   ],
 };
 

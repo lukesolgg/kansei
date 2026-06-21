@@ -3,6 +3,7 @@
 
 import Phaser from 'phaser';
 import { COLORS, hex, mixColor } from '../config/theme.js';
+import { Save } from '../core/SaveManager.js';
 
 export class Backdrop {
   constructor(scene, opts = {}) {
@@ -106,6 +107,7 @@ export class Backdrop {
   }
 
   update(dt) {
+    if (Save.settings.reduceMotion) return; // honour the accessibility toggle
     this.phase += dt * 1.1;
     this._drawGrid(this.phase % 16);
   }

@@ -7,6 +7,7 @@ import { COLORS, hex, titleStyle, labelStyle } from '../config/theme.js';
 import { makeCarTexture, drawNeonRoundRect } from '../core/neon.js';
 import { neonButton, scanlines, fmt, starRow } from '../ui/widgets.js';
 import { Backdrop } from '../ui/backdrop.js';
+import { applyMenuFX } from '../core/fx.js';
 
 export default class LevelSelectScene extends Phaser.Scene {
   constructor() {
@@ -17,6 +18,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     this.cameras.main.fadeIn(200, 0, 0, 0);
     this.backdrop = new Backdrop(this, { sunTop: COLORS.pink, sunBot: COLORS.purple, grid: COLORS.pink });
     scanlines(this);
+    applyMenuFX(this.cameras.main);
 
     this.add.text(640, 46, 'SELECT STAGE', { ...titleStyle(46), color: hex(COLORS.white) })
       .setOrigin(0.5).setLetterSpacing(8).setShadow(0, 0, hex(COLORS.pink), 18, false, true);

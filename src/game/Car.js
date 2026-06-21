@@ -62,6 +62,7 @@ export class Car {
     this.speed = 0;
     this.forwardSpeed = 0;
     this.driftAngle = 0;
+    this.slip = 0;
     this.isDrifting = false;
     this.isSpinning = false;
     this.offTrack = false;
@@ -111,6 +112,23 @@ export class Car {
     this.heading = normAngle(this.heading);
     cos = Math.cos(this.heading);
     sin = Math.sin(this.heading);
+
+    // --- Counter-steer assist (catchable slides) ---
+    // Gently aligns the nose toward the travel direction so the car naturally
+    // catches a slide when you ease off the input. Scaled down by how hard you're
+    // steering (player keeps control) and by the handbrake (so big drifts hold).
+    if (this.speed > 60 && this.forwardSpeed > 0) {
+      const travelAng = Math.atan2(this.vy, this.vx);
+      const slip = normAngle(travelAng - this.heading);
+      if (Math.abs(slip) < 1.4) {
+        let assist = TUNING.counterSteerAssist * (1 - Math.abs(steer));
+        if (handbrake) assist *= TUNING.counterSteerHandbrakeMul;
+        this.heading += Phaser.Math.Clamp(slip, -0.7, 0.7) * assist * dt;
+        this.heading = normAngle(this.heading);
+        cos = Math.cos(this.heading);
+        sin = Math.sin(this.heading);
+      }
+    }
 
     // --- Engine / brake along the forward axis ---
     if (throttle > 0) {
@@ -165,8 +183,10 @@ export class Car {
     // --- Drift state for scoring / fx ---
     if (this.speed > 8) {
       const velAng = Math.atan2(this.vy, this.vx);
-      this.driftAngle = Math.abs(normAngle(velAng - this.heading));
+      this.slip = normAngle(velAng - this.heading); // signed slip angle
+      this.driftAngle = Math.abs(this.slip);
     } else {
+      this.slip = 0;
       this.driftAngle = 0;
     }
     // Drift angle near PI means we're sliding backwards — treat as the rear stepping out.

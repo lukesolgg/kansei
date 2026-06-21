@@ -7,6 +7,7 @@ import { COLORS, hex, titleStyle, labelStyle, mixColor } from '../config/theme.j
 import { makeCarTexture, addGlow, drawNeonRoundRect } from '../core/neon.js';
 import { neonButton, neonPanel, statBar, scanlines, fmt } from '../ui/widgets.js';
 import { Backdrop } from '../ui/backdrop.js';
+import { applyMenuFX } from '../core/fx.js';
 
 export default class GarageScene extends Phaser.Scene {
   constructor() {
@@ -17,6 +18,7 @@ export default class GarageScene extends Phaser.Scene {
     this.cameras.main.fadeIn(200, 0, 0, 0);
     this.backdrop = new Backdrop(this, { sunTop: COLORS.cyan, sunBot: COLORS.purple, grid: COLORS.cyan });
     scanlines(this);
+    applyMenuFX(this.cameras.main);
     this.viewIndex = CAR_ORDER.indexOf(Save.selectedCar);
     if (this.viewIndex < 0) this.viewIndex = 0;
 

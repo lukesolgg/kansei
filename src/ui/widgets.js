@@ -157,6 +157,45 @@ export function scanlines(scene, depth = 1000) {
   return g;
 }
 
+// Draggable horizontal slider (0..1). Calls onChange(value) on drag/click.
+// Returns a container with a setValue(v) helper.
+export function slider(scene, x, y, w, value, color, onChange) {
+  const c = scene.add.container(x, y);
+  const h = 8;
+  const g = scene.add.graphics();
+  const knob = scene.add.circle(0, 0, 11, color).setStrokeStyle(2, COLORS.white, 0.9);
+  let val = Phaser.Math.Clamp(value, 0, 1);
+
+  const redraw = () => {
+    g.clear();
+    g.fillStyle(COLORS.bgDeep, 0.9);
+    g.fillRoundedRect(0, -h / 2, w, h, h / 2);
+    g.fillStyle(color, 1);
+    g.fillRoundedRect(0, -h / 2, Math.max(h, w * val), h, h / 2);
+    g.lineStyle(2, color, 0.4);
+    g.strokeRoundedRect(0, -h / 2, w, h, h / 2);
+    knob.setPosition(w * val, 0);
+  };
+  redraw();
+  c.add([g, knob]);
+
+  const zone = scene.add.zone(w / 2, 0, w + 28, 36).setInteractive({ useHandCursor: true, draggable: true });
+  const apply = (pointer) => {
+    val = Phaser.Math.Clamp((pointer.x - c.x) / w, 0, 1);
+    redraw();
+    onChange && onChange(val);
+  };
+  zone.on('pointerdown', apply);
+  zone.on('drag', apply);
+  c.add(zone);
+
+  c.setValue = (v) => {
+    val = Phaser.Math.Clamp(v, 0, 1);
+    redraw();
+  };
+  return c;
+}
+
 // Format an integer with thousands separators.
 export function fmt(n) {
   return Math.round(n).toLocaleString('en-US');

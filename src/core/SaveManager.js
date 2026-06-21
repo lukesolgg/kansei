@@ -6,6 +6,18 @@ import { UPGRADES } from '../config/upgrades.js';
 
 const STORAGE_KEY = 'kansei.save.v1';
 
+// Defaults merged over any profile's stored settings so older saves gain new keys.
+export const DEFAULT_SETTINGS = {
+  sfx: true,
+  music: true,
+  masterVolume: 0.9,
+  musicVolume: 0.8,
+  sfxVolume: 1.0,
+  shake: true,
+  postfx: true,
+  reduceMotion: false,
+};
+
 function freshUpgrades() {
   const u = {};
   for (const key of Object.keys(UPGRADES)) u[key] = 0;
@@ -26,7 +38,7 @@ function blankProfile(name, pin) {
     carUpgrades: { [STARTER_CAR]: freshUpgrades() },
     // Per-level progress: { 'docks-1': { cleared:true, stars:2, bestScore:12345 } }
     levels: {},
-    settings: { sfx: true, music: true },
+    settings: { ...DEFAULT_SETTINGS },
   };
 }
 
@@ -210,13 +222,17 @@ class SaveManager {
   }
 
   // ---- Settings -----------------------------------------------------------
+  // Lazily backfills missing keys so profiles saved before a setting existed
+  // still return sensible defaults.
   get settings() {
-    return this.current ? this.current.settings : { sfx: true, music: true };
+    if (!this.current) return { ...DEFAULT_SETTINGS };
+    this.current.settings = { ...DEFAULT_SETTINGS, ...this.current.settings };
+    return this.current.settings;
   }
 
   setSetting(key, value) {
     if (!this.current) return;
-    this.current.settings[key] = value;
+    this.current.settings = { ...DEFAULT_SETTINGS, ...this.current.settings, [key]: value };
     this.save();
   }
 }
