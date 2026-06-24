@@ -10,6 +10,7 @@ import { Car } from '../game/Car.js';
 import { DriftScorer } from '../game/DriftScorer.js';
 import { InputController, resetTouch } from '../game/Input.js';
 import { SkidMarks } from '../game/SkidMarks.js';
+import { GhostManager } from '../game/Ghost.js';
 import { makeSoftCircle } from '../core/neon.js';
 import { applyGameplayFX, setSpeedFX, pulseBloom } from '../core/fx.js';
 import { fmt } from '../ui/widgets.js';
@@ -57,6 +58,10 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(19)
       .setScale((carDef.gfxLength / 128) * 1.7)
       .setAlpha(0.2);
+
+    // Best-lap ghost (free mode only): records each lap + replays your best line.
+    this.ghost = this.freeMode ? new GhostManager(this, carDef, this.levelId) : null;
+    if (this.ghost) this.ghost.startLap(sp.x, sp.y, sp.angle);
 
     this.scorer = new DriftScorer();
     this.input2 = new InputController(this);
@@ -114,6 +119,7 @@ export default class GameScene extends Phaser.Scene {
       try { Audio.stopEngine(); } catch (_) {}
       try { Audio.setIntensity(0); } catch (_) {}
       try { if (this.skids) this.skids.destroy(); } catch (_) {}
+      try { if (this.ghost) this.ghost.destroy(); } catch (_) {}
       try {
         if (this.matter && this.matter.world) {
           this.matter.world.off('collisionstart', this._onCollide, this);
@@ -126,7 +132,7 @@ export default class GameScene extends Phaser.Scene {
     return {
       score: 0, multiplier: 1, driftMult: 1, speedMult: 1, chain: 0, driftActive: false,
       fuel: this.fuel / this.fuelMax, fuelLow: false, outOfFuel: false, boostCharge: 0,
-      freeMode: !!this.freeMode, laps: 0,
+      freeMode: !!this.freeMode, laps: 0, lapTime: 0, bestLap: null,
       speed: 0, progress: 0, cash: 0, level: this.level,
       paused: false, state: 'intro',
     };
@@ -369,11 +375,17 @@ export default class GameScene extends Phaser.Scene {
 
     this._updateCamera();
 
-    // Free mode: count laps as you cross the start/finish seam.
-    if (this.freeMode && !this.car.airborne) {
-      const f = this.track.loopFrac(this.car.x, this.car.y);
-      if (this._lapFrac > 0.75 && f < 0.25) this._onLap();
-      this._lapFrac = f;
+    // Free mode: record/replay the best-lap ghost, then count laps at the seam.
+    // The ghost.update (which accumulates THIS frame's dt into the lap clock) runs
+    // BEFORE seam detection, so finishLap() reads a lap time that includes the
+    // crossing frame instead of rolling it into the next lap.
+    if (this.freeMode) {
+      this.ghost.update(dt, this.car.x, this.car.y, this.car.heading);
+      if (!this.car.airborne) {
+        const f = this.track.loopFrac(this.car.x, this.car.y);
+        if (this._lapFrac > 0.75 && f < 0.25) this._onLap();
+        this._lapFrac = f;
+      }
     }
 
     // End conditions (timers use real time)
@@ -503,6 +515,14 @@ export default class GameScene extends Phaser.Scene {
     this.laps++;
     this.scorer.addBonus(500);
     this.fuel = Math.min(this.fuelMax, this.fuel + this.fuelMax * 0.3);
+    // Ghost: finalize the lap that just ended (maybe a new best), then start the next
+    // lap's recorder + restart the ghost replay from the seam in sync with you.
+    const record = this.ghost.finishLap();
+    this.ghost.startLap(this.car.x, this.car.y, this.car.heading);
+    if (record) {
+      this._popup(this.car.x, this.car.y - 58, 'NEW LAP RECORD!', COLORS.amber);
+      Audio.sfx('perfect');
+    }
     this._popup(this.car.x, this.car.y - 32, 'LAP ' + this.laps, COLORS.cyan);
     pulseBloom(this.fx, 2);
     Audio.sfx('lap');
@@ -523,6 +543,8 @@ export default class GameScene extends Phaser.Scene {
     h.speed = Math.round(this.car.speed * 0.3); // arcade MPH
     h.freeMode = this.freeMode;
     h.laps = this.laps;
+    h.lapTime = this.ghost ? this.ghost.lapTime() : 0;
+    h.bestLap = this.ghost ? this.ghost.bestTime() : null;
     h.progress = this.freeMode ? this._lapFrac : this.track.progressFrac();
     h.cash = this.cashCollected;
     h.paused = this.paused;

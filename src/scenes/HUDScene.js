@@ -4,6 +4,16 @@ import { drawNeonRoundRect } from '../core/neon.js';
 import { fmt } from '../ui/widgets.js';
 import { TOUCH } from '../game/Input.js';
 
+// Lap time as m:ss.t (e.g. 0:42.3). Round to deciseconds BEFORE splitting minutes
+// so e.g. 59.96 carries to 1:00.0 rather than rendering the impossible 0:60.0.
+function fmtTime(t) {
+  if (t == null || !isFinite(t)) return '--';
+  const ds = Math.round(t * 10);
+  const m = Math.floor(ds / 600);
+  const s = (ds - m * 600) / 10;
+  return m + ':' + s.toFixed(1).padStart(4, '0');
+}
+
 // Colour ramp for a multiplier — cooler when low, hotter as it climbs.
 function multColor(m) {
   if (m < 1.5) return COLORS.textDim;
@@ -45,6 +55,7 @@ export default class HUDScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setLetterSpacing(3);
     this.lapText = this.add.text(W / 2, 70, '', labelStyle(18, COLORS.cyan)).setOrigin(0.5).setLetterSpacing(3);
+    this.lapTimeText = this.add.text(W / 2, 92, '', labelStyle(15, COLORS.textDim)).setOrigin(0.5).setLetterSpacing(2);
     this.progG = this.add.graphics();
 
     // Cash (top-right)
@@ -111,6 +122,15 @@ export default class HUDScene extends Phaser.Scene {
     this.cashText.setText('$' + fmt(h.cash));
     this.speedText.setText(h.speed);
     if (this.lapText) this.lapText.setText(h.freeMode ? 'LAP ' + (h.laps || 0) : '');
+    if (this.lapTimeText) {
+      if (h.freeMode) {
+        const best = h.bestLap != null ? '   ·   BEST ' + fmtTime(h.bestLap) : '';
+        this.lapTimeText.setText(fmtTime(h.lapTime || 0) + best)
+          .setColor(hex(h.bestLap != null && (h.lapTime || 0) < h.bestLap ? COLORS.lime : COLORS.textDim));
+      } else {
+        this.lapTimeText.setText('');
+      }
+    }
 
     // Progress bar (top-center)
     const pw = 300;
